@@ -1,0 +1,163 @@
+{
+  "mcpServers": {
+    "google-developer-knowledge": {
+      "httpUrl": "https://developerknowledge.googleapis.com/mcp",
+      "authProviderType": "google_credentials",
+      "oauth": {
+        "scopes": [
+          "https://www.googleapis.com/auth/cloud-platform"
+        ]
+      },
+      "timeout": 30000,
+      "headers": {
+        "X-goog-user-project": "windy-hangar-230322"
+      }
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ],
+      "timeout": 15000
+    },
+    "context7": {
+      "httpUrl": "https://mcp.context7.com/mcp",
+      "timeout": 10000
+    }
+  },
+  "hooks": {
+    "BeforeTool": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "logger",
+            "type": "command",
+            "command": "python3 .gemini/hooks/log_activity.py"
+          }
+        ]
+      }
+    ],
+    "AfterTool": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "logger",
+            "type": "command",
+            "command": "python3 .gemini/hooks/log_activity.py"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "logger",
+            "type": "command",
+            "command": "python3 .gemini/hooks/log_activity.py"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "logger",
+            "type": "command",
+            "command": "python3 .gemini/hooks/log_activity.py"
+          }
+        ]
+      }
+    ],
+    "BeforeAgent": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "logger",
+            "type": "command",
+            "command": "python3 .gemini/hooks/log_activity.py"
+          }
+        ]
+      }
+    ],
+    "AfterAgent": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "logger",
+            "type": "command",
+            "command": "python3 .gemini/hooks/log_activity.py"
+          }
+        ]
+      }
+    ],
+    "BeforeModel": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "logger",
+            "type": "command",
+            "command": "python3 .gemini/hooks/log_activity.py"
+          }
+        ]
+      }
+    ],
+    "AfterModel": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "logger",
+            "type": "command",
+            "command": "python3 .gemini/hooks/log_activity.py"
+          }
+        ]
+      }
+    ],
+    "BeforeToolSelection": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "logger",
+            "type": "command",
+            "command": "python3 .gemini/hooks/log_activity.py"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "logger",
+            "type": "command",
+            "command": "python3 .gemini/hooks/log_activity.py"
+          }
+        ]
+      }
+    ],
+    "PreCompress": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "logger",
+            "type": "command",
+            "command": "python3 .gemini/hooks/log_activity.py"
+          }
+        ]
+      }
+    ]
+  }
+}
