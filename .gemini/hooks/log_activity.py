@@ -2,9 +2,11 @@
 import sys
 import json
 import os
-from datetime import datetime
+import traceback
+from datetime import datetime, timezone
 
-LOG_FILE = os.path.join(os.getcwd(), 'logs', 'gemini_activity.log')
+LOG_FILE = os.path.join(os.getcwd(), '.gemini', 'logs', 'actions.log')
+DEBUG_FILE = os.path.join(os.getcwd(), '.gemini', 'logs', 'hook_debug.log')
 
 def main():
     try:
@@ -15,7 +17,11 @@ def main():
             
         data = json.loads(input_data)
         
-        timestamp = data.get("timestamp", datetime.utcnow().isoformat() + "Z")
+        # Get cwd from payload if available, else use os.getcwd()
+        cwd = data.get("cwd", os.getcwd())
+        actual_log_file = os.path.join(cwd, '.gemini', 'logs', 'actions.log')
+        
+        timestamp = data.get("timestamp", datetime.now(timezone.utc).isoformat())
         action = data.get("hook_event_name", "UnknownAction")
         
         # Action details
@@ -28,14 +34,19 @@ def main():
             details["raw_data_keys"] = list(data.keys())
             
         # Ensure log directory exists
-        os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+        os.makedirs(os.path.dirname(actual_log_file), exist_ok=True)
         
-        with open(LOG_FILE, "a") as f:
+        with open(actual_log_file, "a") as f:
             f.write(f"[{timestamp}] ACTION: {action} | DETAILS: {json.dumps(details)}\n")
             
     except Exception as e:
-        # ignore errors to not break the hook
-        pass
+        # log errors to a debug file
+        try:
+            os.makedirs(os.path.dirname(DEBUG_FILE), exist_ok=True)
+            with open(DEBUG_FILE, "a") as f:
+                f.write(f"Error: {str(e)}\n{traceback.format_exc()}\n")
+        except:
+            pass
         
     # Always output empty JSON object required by Gemini CLI
     print("{}")

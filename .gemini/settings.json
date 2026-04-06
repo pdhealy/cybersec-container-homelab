@@ -29,24 +29,24 @@
   "hooks": {
     "BeforeTool": [
       {
-        "matcher": "*",
+        "matcher": ".*",
         "hooks": [
           {
             "name": "logger",
             "type": "command",
-            "command": "python3 .gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.py"
           }
         ]
       }
     ],
     "AfterTool": [
       {
-        "matcher": "*",
+        "matcher": ".*",
         "hooks": [
           {
             "name": "logger",
             "type": "command",
-            "command": "python3 .gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.py"
           }
         ]
       }
@@ -58,7 +58,7 @@
           {
             "name": "logger",
             "type": "command",
-            "command": "python3 .gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.py"
           }
         ]
       }
@@ -70,7 +70,7 @@
           {
             "name": "logger",
             "type": "command",
-            "command": "python3 .gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.py"
           }
         ]
       }
@@ -82,7 +82,7 @@
           {
             "name": "logger",
             "type": "command",
-            "command": "python3 .gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.py"
           }
         ]
       }
@@ -94,7 +94,7 @@
           {
             "name": "logger",
             "type": "command",
-            "command": "python3 .gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.py"
           }
         ]
       }
@@ -106,7 +106,7 @@
           {
             "name": "logger",
             "type": "command",
-            "command": "python3 .gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.py"
           }
         ]
       }
@@ -118,7 +118,7 @@
           {
             "name": "logger",
             "type": "command",
-            "command": "python3 .gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.py"
           }
         ]
       }
@@ -130,7 +130,7 @@
           {
             "name": "logger",
             "type": "command",
-            "command": "python3 .gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.py"
           }
         ]
       }
@@ -142,7 +142,7 @@
           {
             "name": "logger",
             "type": "command",
-            "command": "python3 .gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.py"
           }
         ]
       }
@@ -154,10 +154,13 @@
           {
             "name": "logger",
             "type": "command",
-            "command": "python3 .gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.py"
           }
         ]
       }
     ]
+  },
+  "hooksConfig": {
+    "enabled": true
   }
 }

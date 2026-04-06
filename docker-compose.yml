@@ -1,0 +1,187 @@
+version: '3.8'
+
+networks:
+  external_net:
+    driver: bridge
+    enable_ipv6: false
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "false"
+    ipam:
+      config:
+        - subnet: 10.10.10.0/24
+  dmz_net:
+    driver: bridge
+    enable_ipv6: false
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "false"
+    ipam:
+      config:
+        - subnet: 10.10.20.0/24
+  internal_net:
+    driver: bridge
+    enable_ipv6: false
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "false"
+    ipam:
+      config:
+        - subnet: 10.10.30.0/24
+
+services:
+  firewall:
+    build:
+      context: ./firewall
+    image: homelab-firewall:latest
+    container_name: firewall
+    networks:
+      external_net:
+        ipv4_address: 10.10.10.254
+      dmz_net:
+        ipv4_address: 10.10.20.254
+      internal_net:
+        ipv4_address: 10.10.30.254
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+    # Removed user directive as iptables needs root to load kernel modules
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "iptables", "-L"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    sysctls:
+      - net.ipv4.ip_forward=1
+
+  pihole:
+    image: pihole/pihole@sha256:300cc8f9e966b00440358aafef21f91b32dfe8887e8bd9a6193ed1c4328655d4
+    container_name: pihole
+    networks:
+      internal_net:
+        ipv4_address: 10.10.30.5
+    environment:
+      - WEBPASSWORD=${PIHOLE_PASSWORD}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/log/pihole
+      - /var/run/pihole
+      - /var/run/lighttpd
+      - /run
+      - /run/lighttpd
+      - /etc/pihole
+      - /etc/dnsmasq.d
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+    depends_on:
+      firewall:
+        condition: service_healthy
+    # Route via firewall
+    command: >
+      sh -c "ip route del default && ip route add default via 10.10.30.254 && /s6-init"
+
+  wazuh.manager:
+    image: wazuh/wazuh-manager@sha256:366f142ebb28920c41bf77af1dcded832a21e9d4ed9a63741656b43639592ca2
+    container_name: wazuh-manager
+    networks:
+      internal_net:
+        ipv4_address: 10.10.30.10
+    environment:
+      - WAZUH_ADMIN_PASSWORD=${WAZUH_ADMIN_PASSWORD}
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+      memlock:
+        soft: -1
+        hard: -1
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+      - /var/run
+    volumes:
+      - wazuh_data:/var/ossec/data
+    restart: unless-stopped
+    depends_on:
+      firewall:
+        condition: service_healthy
+    # Default route
+    command: >
+      sh -c "ip route del default && ip route add default via 10.10.30.254 && /entrypoint.sh"
+
+  vulnerable-target:
+    image: tleemcjr/metasploitable2@sha256:e559450b37dccc1909eafa2df5b20bb052e1bd801246f4539a3ef183d5f7288a
+    container_name: vulnerable-target
+    networks:
+      dmz_net:
+        ipv4_address: 10.10.20.10
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+      - /var/run
+      - /var/tmp
+    restart: unless-stopped
+    depends_on:
+      firewall:
+        condition: service_healthy
+    command: >
+      sh -c "ip route del default && ip route add default via 10.10.20.254 && /bin/bash -c 'tail -f /dev/null'"
+
+  attacker-node:
+    build:
+      context: ./attacker-node
+    image: homelab-attacker:latest
+    container_name: attacker-node
+    networks:
+      external_net:
+        ipv4_address: 10.10.10.10
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+    user: "1000:1000"
+    depends_on:
+      firewall:
+        condition: service_healthy
+    command: >
+      sh -c "ip route del default && ip route add default via 10.10.10.254 && tail -f /dev/null"
+
+volumes:
+  wazuh_data:
