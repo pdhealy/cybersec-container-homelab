@@ -11,80 +11,54 @@ The phased execution plan (`plan_phased.md`) for the secure Cyber Homelab has be
 *   **Secret Management:** Generated a `.env` file for sensitive credentials (`PIHOLE_PASSWORD`, `WAZUH_ADMIN_PASSWORD`, `ATTACKER_PASSWORD`) and added it to `.gitignore`.
 
 ### Phase 2: Core Network & Perimeter Security
-*   **Docker Networks:** Defined `external_net`, `dmz_net`, and `internal_net` in `docker-compose.yml` with Inter-Container Communication (ICC) strictly disabled (`com.docker.network.bridge.enable_icc: "false"`) and IPv6 disabled.
+*   **Docker Networks:** Defined `external_net`, `dmz_net`, and `internal_net` in `docker-compose.yml` with IPv6 disabled. Inter-Container Communication (ICC) was initially disabled but temporarily re-enabled due to routing restrictions.
 *   **Firewall Container:** Built a custom Alpine-based firewall (`firewall/Dockerfile`) with an `iptables` script (`firewall-rules.sh`) enforcing default `DROP` policies and allowing specific routing. Pinned the Alpine base image with a SHA256 digest. Configured with `cap_drop: [ALL]`, `cap_add: [NET_ADMIN, NET_RAW]`, `read_only: true`, and `security_opt: ["no-new-privileges:true"]`.
 *   **Pi-hole:** Configured Pi-hole in `docker-compose.yml` on the `internal_net` with resource limits, `read_only: true`, and explicit `tmpfs` mounts. Pinned the image with a SHA256 digest.
 
 ### Phase 3: Telemetry & Vulnerable Infrastructure
-*   **Wazuh SIEM:** Configured `wazuh/wazuh-manager` in `docker-compose.yml` with production tuning (resource limits, `ulimits`, memory locking). Pinned the image digest. Configured with strict security options (`read_only: true`, `no-new-privileges:true`).
-*   **Vulnerable Target:** Configured `vulnerables/metasploitable2` on `dmz_net` with dropped capabilities and read-only root filesystem. Pinned the image digest.
+*   **Wazuh SIEM:** Configured `wazuh/wazuh-manager` in `docker-compose.yml` with production tuning (resource limits, `ulimits`, memory locking). Pinned the image digest. Configured with strict security options (`read_only: true`, `no-new-privileges:true`) and explicit `tmpfs` mounts.
+*   **Vulnerable Target:** Configured `vulnerables/metasploitable2` on `dmz_net` with dropped capabilities and read-only root filesystem. Pinned the image digest. Modified default route via custom command.
 
 ### Phase 4: The Attacker Enclave
-*   **Kali Dockerfile:** Built a custom Kali Linux container (`attacker-node/Dockerfile`) with a non-root `hacker` user, restricted `sudo` access, and essential network tools. Pinned the base image digest.
+*   **Kali Dockerfile:** Built a custom Kali Linux container (`attacker-node/Dockerfile`) with a non-root `hacker` user, restricted `sudo` access, and essential network tools (`iproute2`, `iputils-ping`, `curl`). Pinned the base image digest.
 *   **DevContainer Integration:** Configured `.devcontainer/devcontainer.json` to attach VS Code to the attacker node with necessary extensions.
 
 ### Phase 5: Orchestration
-*   **Lab Manager Script:** Developed `lab_manager.py` with pre-flight checks (verifying `.env`, `vm.max_map_count`, and swap status) and integrated with Docker Compose commands.
-
-### Phase 6: Validation (Attempted)
-*   **Build Validation:** Successfully validated that all custom Dockerfiles compile using `docker compose build`. Image digests were automatically resolved to their latest valid SHA256 hashes.
-*   **Runtime Validation:** Attempted to bring up the environment with `docker compose up -d`, which revealed several runtime failures due to the strict security constraints imposed by the plan.
+*   **Lab Manager Script:** Developed `lab_manager.py` with pre-flight checks (verifying `.env`, `vm.max_map_count`, and swap status) and integrated with Docker Compose commands. Integrated the `validation.sh` script to run automatically 15 seconds after `lab_manager.py up`.
 
 ---
 
-## Issues Encountered
+## Phase 6 Execution Results (Automated Validation)
 
-The strict "Google-grade" security constraints outlined in the plan caused several critical runtime failures when validating the setup:
+The end-to-end validation was successfully integrated into the orchestration script (`lab_manager.py`) using `validation.sh`. The results of the final Phase 6 run are as follows:
 
-1.  **Routing vs. Privileges (RTNETLINK Errors):**
-    *   *Issue:* The plan mandates explicit default route overrides (`ip route add default via ...`) within the container startup commands, while simultaneously requiring `cap_drop: [ALL]` and strict non-root execution.
-    *   *Error:* `RTNETLINK answers: Operation not permitted`
-    *   *Cause:* Unprivileged users without the `NET_ADMIN` capability cannot manipulate the container's routing table.
-
-2.  **Firewall Constraints (iptables & Root):**
-    *   *Issue:* The plan specified running the firewall container as a non-root user (`USER <uid>:<gid>`).
-    *   *Error:* `iptables v1.8.11 (nf_tables): Could not fetch rule set generation id: Permission denied (you must be root)`
-    *   *Cause:* `iptables` intrinsically requires root namespace access to manipulate network filters, even with `NET_ADMIN` capabilities added.
-
-3.  **Wazuh Initialization (s6-overlay & Read-Only FS):**
-    *   *Issue:* The `wazuh-manager` container is configured with `read_only: true` and `security_opt: ["no-new-privileges:true"]`.
-    *   *Error:* Numerous `s6-chown: fatal: unable to chown /var/run/s6/etc/...: Read-only file system` and `Permission denied` errors.
-    *   *Cause:* The `s6-overlay` initialization system used by Wazuh extensively manipulates file permissions and ownership in directories like `/var/run/s6/etc/` and `/var/ossec/` upon startup, which fails on a strict read-only filesystem.
-
-4.  **Pi-hole and Target Routing Initialization:**
-    *   *Issue:* Similar to the attacker node, `pihole` and `vulnerable-target` failed to set their default routes due to missing `NET_ADMIN` capabilities and missing `ip` commands in some base images (e.g., Metasploitable2 may lack `iproute2` out of the box).
+*   **Build & Structural Validation: PASS.** Both `homelab-attacker` and `homelab-firewall` images correctly specify restricted directives, and the runtime limits apply properly.
+*   **Runtime & Security Context Validation: PASS.** All containers strictly enforce `read_only: true`, `security_opt: [no-new-privileges:true]`, and `cap_drop: [ALL]`. Required capabilities (`NET_ADMIN`, `NET_RAW`, etc.) are explicitly allowed where needed.
+*   **Service & API Health Checks: PARTIAL PASS.** The Firewall container reports as `healthy`. The SIEM API check fails to respond immediately at the 15-second validation mark because Wazuh's initialization cycle takes longer to boot up its services, but the container does not crash.
+*   **Network Isolation & Connectivity Testing: PARTIAL PASS / FAIL.**
+    *   *Drop Policy:* **PASS.** Pings from the vulnerable target to the attacker node correctly drop as expected.
+    *   *ICC Verification:* **FAIL.** Inter-Container Communication (ICC) between containers on the same network (e.g., Pi-hole to Wazuh) was allowed because `com.docker.network.bridge.enable_icc: "false"` had to be temporarily removed. Without ICC enabled, the Docker host kernel physically drops traffic on bridges, fundamentally preventing the firewall container from routing any traffic between networks.
+    *   *Firewall Routing (Attacker to Target):* **FAIL.** Packets successfully route through the firewall gateway but are subsequently dropped by the Docker host's `bridge-nf-call-iptables=1` isolation rules (`DOCKER-FORWARD` and `DOCKER-ISOLATION` chains). The host kernel blocks L2 multi-bridge traversal, preventing true container-to-container L3 routing across isolated networks without explicit host-level `iptables` modifications.
 
 ---
 
-## Detailed Fixes & Recommendations
+## Pending Issues & Comprehensive Next Steps
 
-To achieve a functional environment while maintaining the highest possible security posture, the following adjustments are recommended:
+While container-level isolation and least privilege are successfully achieved, the **Docker host network isolation** directly conflicts with our design of using a container as a central L3 Router/Firewall. 
 
-1.  **Fixing Routing Restrictions (RTNETLINK Errors):**
-    *   *Recommendation:* Since we must override the default routes to enforce traffic through the firewall, the containers that perform routing setup (`attacker-node`, `pihole`, `wazuh-manager`, `vulnerable-target`) must either:
-        *   **Option A:** Add the `NET_ADMIN` capability (`cap_add: [NET_ADMIN]`). This slightly reduces isolation but is necessary for manual routing inside the container.
-        *   **Option B:** Configure routing at the Docker daemon network level (often complex and unsupported directly in standard Compose bridge networks without custom plugins).
-    *   *Action Plan:* Proceed with Option A. Add `cap_add: [NET_ADMIN]` to all containers that require a custom default route.
+1.  **Resolve L3 Routing Limitations (Host iptables bypass):**
+    *   *Problem:* The Docker daemon automatically injects strict `iptables` rules into the host's `FORWARD` and `DOCKER-ISOLATION-STAGE-X` chains to prevent traffic from crossing between separate Docker bridge networks, even if an explicit container is configured to route them.
+    *   *Action Plan:* We need to explicitly allow traffic to be routed by the `firewall` container through the host's `FORWARD` chain. This requires executing a script on the host (e.g., in `setup_host.sh`) to insert `ACCEPT` rules into the `DOCKER-USER` iptables chain. 
+    *   *Implementation:* Add `sudo iptables -I DOCKER-USER -i br-+ -o br-+ -j ACCEPT` (or specifically target the explicit bridge interfaces for `external_net`, `dmz_net`, and `internal_net`) to bypass the default drop.
 
-2.  **Fixing Firewall Root Requirement:**
-    *   *Fix Applied:* Removed the `USER 1000:1000` directive from `firewall/Dockerfile`. The container now runs as root but retains `cap_drop: [ALL]`, `cap_add: [NET_ADMIN, NET_RAW]`, `read_only: true`, and `no-new-privileges:true`. This minimizes the attack surface while allowing `iptables` to function.
+2.  **Re-enable Strict ICC (Inter-Container Communication):**
+    *   *Problem:* ICC was disabled to allow testing, which violates the strict intra-network isolation requirement. 
+    *   *Action Plan:* Revert networks to use `com.docker.network.bridge.enable_icc: "false"`. Test if bypassing the `DOCKER-USER` isolation (Step 1) also resolves the ICC L3 gateway block, or if Docker's bridge driver completely ignores the gateway when ICC is false. If standard Docker bridges cannot support this, we may need to transition to `macvlan` or a custom Docker network driver that inherently supports a central router container.
 
-3.  **Fixing Wazuh Read-Only Initialization:**
-    *   *Recommendation:* The `read_only: true` constraint is too strict for `wazuh-manager`'s `s6-overlay`.
-    *   *Action Plan:* We must explicitly define `tmpfs` mounts for every directory the initialization scripts attempt to modify. This requires mapping `/var/run/s6/`, `/etc/services.d/`, and ensuring `/var/ossec` has proper writable volumes. Alternatively, we may need to remove `read_only: true` from the `wazuh.manager` service and rely on `no-new-privileges` and `cap_drop` for isolation, as enterprise SIEM deployments often write to numerous unpredictable paths during startup.
+3.  **Implement Robust SIEM API Health Check:**
+    *   *Problem:* The validation script queries the Wazuh API too early. 
+    *   *Action Plan:* Update `validation.sh` to implement a wait-for-it loop (e.g., polling the API endpoint every 5 seconds for up to 2 minutes) rather than executing a single `curl` check immediately after `lab_manager.py up`.
 
-4.  **Fixing Metasploitable2 Routing:**
-    *   *Recommendation:* The `vulnerable-target` (Metasploitable2) image does not have the `ip` command installed by default, causing the routing command to fail with `sh: line 1: ip: command not found`.
-    *   *Action Plan:* We must either build a custom image based on Metasploitable2 to install `iproute2` (using `apt-get install iproute2`), or use the legacy `route add default gw` command if the `net-tools` package is present.
-
----
-
-## Next Steps
-
-1.  **Apply Capability Fixes:** Update `docker-compose.yml` to grant `NET_ADMIN` to `attacker-node`, `vulnerable-target`, `pihole`, and `wazuh-manager` to allow default route overrides.
-2.  **Resolve Metasploitable2 Routing:** Modify the `command` for `vulnerable-target` to use `route add default gw 10.10.20.254` instead of the `ip` command, or create a custom Dockerfile to install `iproute2`.
-3.  **Tune Wazuh Read-Only Mounts:** Systematically map the required `s6-overlay` directories to `tmpfs` mounts in `docker-compose.yml`, or temporarily disable `read_only: true` for the `wazuh.manager` to observe a successful startup, then harden iteratively.
-4.  **Re-run Validation:** Execute `lab_manager.py up` and verify that all containers start healthily without crashing loops.
-5.  **Conduct End-to-End Network Tests:** Execute the network isolation and firewall enforcement tests defined in Phase 6.
-## Phase 6 Execution Results
-Phase 6 testing was executed. Capability and mount issues resolved, but strict docker isolation rules (ICC and isolation chains) prevent a container from acting as an L3 router without modifying host iptables.
+4.  **Refine Privilege Dropping:**
+    *   *Problem:* The firewall and attacker nodes are currently running as `USER 0:0` (root) because of permissions required for `iptables` and `ip route`.
+    *   *Action Plan:* Explore configuring the network namespace routing from the host *before* container initialization, or fully transition to `macvlan`/`ipvlan` architectures to decouple routing from container privileges, allowing a true return to `USER 1000:1000`. 
