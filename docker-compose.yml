@@ -4,18 +4,28 @@ networks:
   external_net:
     driver: bridge
     enable_ipv6: false
+    driver_opts:
+      # Disable intra-network ICC so containers on the same subnet cannot
+      # communicate directly; all traffic is forced through the firewall container.
+      # Cross-bridge routing still works because the DOCKER-USER iptables chain
+      # is configured by setup_host.sh / lab_manager.py to ACCEPT br-+ to br-+.
+      com.docker.network.bridge.enable_icc: "false"
     ipam:
       config:
         - subnet: 10.10.10.0/24
   dmz_net:
     driver: bridge
     enable_ipv6: false
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "false"
     ipam:
       config:
         - subnet: 10.10.20.0/24
   internal_net:
     driver: bridge
     enable_ipv6: false
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "false"
     ipam:
       config:
         - subnet: 10.10.30.0/24
@@ -44,6 +54,10 @@ services:
     tmpfs:
       - /tmp
       - /run
+    # iptables requires uid 0 even when CAP_NET_ADMIN is granted. The Dockerfile
+    # defines USER 1000:1000 as the default, so we override here explicitly.
+    # Future work: migrate to macvlan/ipvlan to decouple L3 routing from
+    # container privileges (see implementation_status.md §4).
     user: "0:0"
     restart: unless-stopped
     healthcheck:
@@ -231,8 +245,10 @@ services:
     depends_on:
       firewall:
         condition: service_healthy
+    # Start as root to configure the default route, then drop to hacker via gosu.
+    # gosu uses exec(3) so the final process has no residual root capabilities.
     command: >
-      sh -c "ip route del default && ip route add default via 10.10.10.254 && su hacker -c 'tail -f /dev/null'"
+      sh -c "ip route del default && ip route add default via 10.10.10.254 && exec gosu hacker tail -f /dev/null"
 
 volumes:
   wazuh_data:

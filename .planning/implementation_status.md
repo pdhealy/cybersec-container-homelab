@@ -42,23 +42,31 @@ The end-to-end validation was successfully integrated into the orchestration scr
 
 ---
 
-## Pending Issues & Comprehensive Next Steps
+## Phase 7: Resolved Issues & Implementation Changes
 
-While container-level isolation and least privilege are successfully achieved, the **Docker host network isolation** directly conflicts with our design of using a container as a central L3 Router/Firewall. 
+The pending issues from Phase 6 have been addressed as follows:
 
-1.  **Resolve L3 Routing Limitations (Host iptables bypass):**
-    *   *Problem:* The Docker daemon automatically injects strict `iptables` rules into the host's `FORWARD` and `DOCKER-ISOLATION-STAGE-X` chains to prevent traffic from crossing between separate Docker bridge networks, even if an explicit container is configured to route them.
-    *   *Action Plan:* We need to explicitly allow traffic to be routed by the `firewall` container through the host's `FORWARD` chain. This requires executing a script on the host (e.g., in `setup_host.sh`) to insert `ACCEPT` rules into the `DOCKER-USER` iptables chain. 
-    *   *Implementation:* Add `sudo iptables -I DOCKER-USER -i br-+ -o br-+ -j ACCEPT` (or specifically target the explicit bridge interfaces for `external_net`, `dmz_net`, and `internal_net`) to bypass the default drop.
+### 1. L3 Routing — DOCKER-USER iptables Chain (RESOLVED)
+*   **Root Cause:** Docker's `DOCKER-ISOLATION-STAGE-1/2` chains drop all inter-bridge forwarding, blocking the firewall container from routing between `external_net`, `dmz_net`, and `internal_net`.
+*   **Fix:** Added an idempotent `iptables -I DOCKER-USER -i br-+ -o br-+ -j ACCEPT` rule to both `setup_host.sh` and `lab_manager.py` (applied after `docker compose up`). The `DOCKER-USER` chain is evaluated before the isolation chains, so this rule allows the firewall container to perform L3 routing while leaving per-bridge ICC isolation intact.
+*   **Files changed:** `setup_host.sh`, `lab_manager.py` (`apply_docker_user_rules()`)
 
-2.  **Re-enable Strict ICC (Inter-Container Communication):**
-    *   *Problem:* ICC was disabled to allow testing, which violates the strict intra-network isolation requirement. 
-    *   *Action Plan:* Revert networks to use `com.docker.network.bridge.enable_icc: "false"`. Test if bypassing the `DOCKER-USER` isolation (Step 1) also resolves the ICC L3 gateway block, or if Docker's bridge driver completely ignores the gateway when ICC is false. If standard Docker bridges cannot support this, we may need to transition to `macvlan` or a custom Docker network driver that inherently supports a central router container.
+### 2. ICC Re-enabled (RESOLVED)
+*   **Fix:** Re-added `com.docker.network.bridge.enable_icc: "false"` as `driver_opts` on all three networks (`external_net`, `dmz_net`, `internal_net`) in `docker-compose.yml`. The `DOCKER-USER` fix in Step 1 allows cross-bridge routing to work while this option still blocks intra-network direct communication.
+*   **Files changed:** `docker-compose.yml` (all three network definitions)
 
-3.  **Implement Robust SIEM API Health Check:**
-    *   *Problem:* The validation script queries the Wazuh API too early. 
-    *   *Action Plan:* Update `validation.sh` to implement a wait-for-it loop (e.g., polling the API endpoint every 5 seconds for up to 2 minutes) rather than executing a single `curl` check immediately after `lab_manager.py up`.
+### 3. SIEM API Health Check — Polling Loop (RESOLVED)
+*   **Fix:** Rewrote the SIEM validation section of `validation.sh` to poll the Wazuh API every 5 seconds for up to 120 seconds (24 attempts) before reporting failure. Credentials are now loaded dynamically from `.env` via `grep`/`cut` rather than being hardcoded.
+*   **Files changed:** `validation.sh`
 
-4.  **Refine Privilege Dropping:**
-    *   *Problem:* The firewall and attacker nodes are currently running as `USER 0:0` (root) because of permissions required for `iptables` and `ip route`.
-    *   *Action Plan:* Explore configuring the network namespace routing from the host *before* container initialization, or fully transition to `macvlan`/`ipvlan` architectures to decouple routing from container privileges, allowing a true return to `USER 1000:1000`. 
+### 4. Privilege Dropping — gosu for Attacker Node (PARTIALLY RESOLVED)
+*   **Firewall:** The firewall container must run as `uid 0` because `iptables` requires root even with `CAP_NET_ADMIN`. Added explicit `user: "0:0"` to the firewall service in `docker-compose.yml` with a comment documenting the constraint. The long-term path to eliminating this is migrating to a `macvlan`/`ipvlan` architecture where L3 routing is handled by the host kernel rather than a privileged container.
+*   **Attacker Node:** Installed `gosu` in `attacker-node/Dockerfile` and updated the `command` in `docker-compose.yml` to use `exec gosu hacker tail -f /dev/null` instead of `su hacker -c '...'`. `gosu` uses `exec(3)` to replace the process, ensuring no residual root capabilities remain after the privilege drop.
+*   **Files changed:** `attacker-node/Dockerfile`, `docker-compose.yml` (attacker-node command and firewall user)
+
+---
+
+## Remaining Future Work
+
+*   **macvlan/ipvlan migration:** Fully decouple L3 routing from container privileges by moving the routing function to the host kernel (macvlan parent interface). This would allow the firewall container to run as `USER 1000:1000` and remove the `user: "0:0"` override.
+*   **Per-bridge DOCKER-USER rules:** Replace the broad `br-+` wildcard in the DOCKER-USER rule with interface-specific rules targeting the exact bridge names for `external_net`, `dmz_net`, and `internal_net` for tighter host-level control.
