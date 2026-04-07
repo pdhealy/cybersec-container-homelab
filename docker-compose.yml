@@ -4,24 +4,18 @@ networks:
   external_net:
     driver: bridge
     enable_ipv6: false
-    driver_opts:
-      com.docker.network.bridge.enable_icc: "false"
     ipam:
       config:
         - subnet: 10.10.10.0/24
   dmz_net:
     driver: bridge
     enable_ipv6: false
-    driver_opts:
-      com.docker.network.bridge.enable_icc: "false"
     ipam:
       config:
         - subnet: 10.10.20.0/24
   internal_net:
     driver: bridge
     enable_ipv6: false
-    driver_opts:
-      com.docker.network.bridge.enable_icc: "false"
     ipam:
       config:
         - subnet: 10.10.30.0/24
@@ -50,7 +44,7 @@ services:
     tmpfs:
       - /tmp
       - /run
-    # Removed user directive as iptables needs root to load kernel modules
+    user: "0:0"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "iptables", "-L"]
@@ -68,11 +62,27 @@ services:
         ipv4_address: 10.10.30.5
     environment:
       - WEBPASSWORD=${PIHOLE_PASSWORD}
+      - DNSMASQ_USER=root
     deploy:
       resources:
         limits:
           cpus: '0.5'
           memory: 512M
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - NET_BIND_SERVICE
+      - SYS_NICE
+      - CHOWN
+      - SETUID
+      - SETGID
+      - FOWNER
+      - DAC_OVERRIDE
+      - SETPCAP
+      - SETFCAP
+      - SYS_CHROOT
     security_opt:
       - no-new-privileges:true
     read_only: true
@@ -85,6 +95,10 @@ services:
       - /run/lighttpd
       - /etc/pihole
       - /etc/dnsmasq.d
+      - /var/spool/cron/crontabs
+      - /var/log/lighttpd
+      - /var/cache/lighttpd
+      - /etc/lighttpd
     logging:
       driver: "json-file"
       options:
@@ -94,12 +108,15 @@ services:
     depends_on:
       firewall:
         condition: service_healthy
-    # Route via firewall
-    command: >
-      sh -c "ip route del default && ip route add default via 10.10.30.254 && /s6-init"
+    entrypoint:
+      - sh
+      - -c
+      - "ip route del default && ip route add default via 10.10.30.254 && exec start.sh"
 
   wazuh.manager:
-    image: wazuh/wazuh-manager@sha256:366f142ebb28920c41bf77af1dcded832a21e9d4ed9a63741656b43639592ca2
+    build:
+      context: ./siem
+    image: homelab-wazuh:latest
     container_name: wazuh-manager
     networks:
       internal_net:
@@ -117,6 +134,21 @@ services:
       memlock:
         soft: -1
         hard: -1
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - CHOWN
+      - SETUID
+      - SETGID
+      - FOWNER
+      - DAC_OVERRIDE
+      - SYS_PTRACE
+      - SYS_CHROOT
+      - SYS_RESOURCE
+      - SETFCAP
+      - SETPCAP
     security_opt:
       - no-new-privileges:true
     read_only: true
@@ -124,15 +156,29 @@ services:
       - /tmp
       - /run
       - /var/run
+      - /var/ossec/api/configuration
+      - /var/ossec/etc
+      - /var/ossec/logs
+      - /var/ossec/queue
+      - /var/ossec/var/multigroups
+      - /var/ossec/integrations
+      - /var/ossec/active-response/bin
+      - /var/ossec/agentless
+      - /var/ossec/wodles
+      - /etc/filebeat
+      - /var/ossec/data_tmp/exclusion
+      - /var/ossec/var/run
+      - /var/ossec/data_tmp/permanent
     volumes:
       - wazuh_data:/var/ossec/data
     restart: unless-stopped
     depends_on:
       firewall:
         condition: service_healthy
-    # Default route
-    command: >
-      sh -c "ip route del default && ip route add default via 10.10.30.254 && /entrypoint.sh"
+    entrypoint:
+      - sh
+      - -c
+      - "ip route del default && ip route add default via 10.10.30.254 && exec /init"
 
   vulnerable-target:
     image: tleemcjr/metasploitable2@sha256:e559450b37dccc1909eafa2df5b20bb052e1bd801246f4539a3ef183d5f7288a
@@ -142,6 +188,9 @@ services:
         ipv4_address: 10.10.20.10
     cap_drop:
       - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
     security_opt:
       - no-new-privileges:true
     read_only: true
@@ -155,7 +204,7 @@ services:
       firewall:
         condition: service_healthy
     command: >
-      sh -c "ip route del default && ip route add default via 10.10.20.254 && /bin/bash -c 'tail -f /dev/null'"
+      sh -c "route del default || true && route add default gw 10.10.20.254 && /bin/bash -c 'tail -f /dev/null'"
 
   attacker-node:
     build:
@@ -170,18 +219,20 @@ services:
     cap_add:
       - NET_RAW
       - NET_ADMIN
+      - SETGID
+      - SETUID
     security_opt:
       - no-new-privileges:true
     read_only: true
     tmpfs:
       - /tmp
       - /run
-    user: "1000:1000"
+    user: "0:0"
     depends_on:
       firewall:
         condition: service_healthy
     command: >
-      sh -c "ip route del default && ip route add default via 10.10.10.254 && tail -f /dev/null"
+      sh -c "ip route del default && ip route add default via 10.10.10.254 && su hacker -c 'tail -f /dev/null'"
 
 volumes:
   wazuh_data:

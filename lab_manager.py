@@ -55,6 +55,11 @@ def main():
     if action == "up":
         check_preflight()
         run_compose("up")
+        print("Waiting for containers to initialize...")
+        import time
+        time.sleep(15)
+        print("Running validation script...")
+        subprocess.run(["./validation.sh"])
     elif action == "down":
         run_compose("down")
     elif action == "build":

@@ -5,6 +5,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tcpdump \
     iproute2 \
     sudo \
+    iputils-ping \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -s /bin/bash hacker && \
@@ -12,6 +14,6 @@ RUN useradd -m -s /bin/bash hacker && \
     usermod -aG sudo hacker
 
 # Restrict sudo so hacker can only run nmap and tcpdump
-RUN echo "hacker ALL=(ALL) NOPASSWD: /usr/bin/nmap, /usr/sbin/tcpdump, /usr/sbin/ip" > /etc/sudoers.d/hacker
+RUN echo "hacker ALL=(ALL) NOPASSWD: /usr/bin/nmap, /usr/sbin/tcpdump, /usr/sbin/ip, /usr/bin/ping" > /etc/sudoers.d/hacker
 
 USER 1000:1000

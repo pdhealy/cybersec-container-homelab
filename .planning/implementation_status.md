@@ -86,3 +86,5 @@ To achieve a functional environment while maintaining the highest possible secur
 3.  **Tune Wazuh Read-Only Mounts:** Systematically map the required `s6-overlay` directories to `tmpfs` mounts in `docker-compose.yml`, or temporarily disable `read_only: true` for the `wazuh.manager` to observe a successful startup, then harden iteratively.
 4.  **Re-run Validation:** Execute `lab_manager.py up` and verify that all containers start healthily without crashing loops.
 5.  **Conduct End-to-End Network Tests:** Execute the network isolation and firewall enforcement tests defined in Phase 6.
+## Phase 6 Execution Results
+Phase 6 testing was executed. Capability and mount issues resolved, but strict docker isolation rules (ICC and isolation chains) prevent a container from acting as an L3 router without modifying host iptables.
