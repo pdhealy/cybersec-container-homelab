@@ -38,48 +38,31 @@ def check_preflight():
 
 
 def apply_docker_user_rules():
-    """Ensure the host iptables allows the firewall container to route across bridges.
+    """Insert a rule into the DOCKER-USER iptables chain so the firewall container
+    can route packets across Docker bridge networks.
 
-    Behaviour differs by Docker version:
+    Docker's DOCKER-ISOLATION-STAGE chains block inter-bridge forwarding by
+    default.  The DOCKER-USER chain is evaluated *before* those chains, so an
+    ACCEPT rule here lets the firewall container perform L3 routing while still
+    allowing per-bridge ICC=false isolation to enforce intra-network separation.
 
-    • Legacy Docker (uses DOCKER-ISOLATION-STAGE-1/2 chains): those chains DROP
-      all inter-bridge forwarding unconditionally.  We must insert an ACCEPT rule
-      into DOCKER-USER (evaluated first) to let the firewall container route.
-
-    • Modern Docker 27+ (uses DOCKER-FORWARD chain): when enable_icc=false is set
-      on a bridge network Docker automatically adds:
-          -A DOCKER-FORWARD -i <br> -o <br>      -j DROP   (ICC block)
-          -A DOCKER-FORWARD -i <br> ! -o <br>    -j ACCEPT (cross-bridge OK)
-      Cross-bridge routing therefore works natively; a broad DOCKER-USER ACCEPT
-      would override the ICC DROP and re-allow intra-network traffic — harmful.
-
-    This function detects which model is active and acts accordingly.
+    The rule is inserted idempotently: if it already exists no change is made.
+    Requires the Docker daemon (and therefore the DOCKER-USER chain) to be
+    running before this function is called.
     """
-    print("Checking iptables chain model for cross-bridge routing...")
+    print("Configuring DOCKER-USER iptables chain for cross-bridge routing...")
 
-    # Modern Docker uses DOCKER-FORWARD; legacy uses DOCKER-ISOLATION-STAGE-1.
-    modern = subprocess.run(
-        ["sudo", "iptables", "-L", "DOCKER-FORWARD", "-n"],
+    # Verify the DOCKER-USER chain exists (implies Docker daemon is running).
+    probe = subprocess.run(
+        ["sudo", "iptables", "-L", "DOCKER-USER", "-n"],
         capture_output=True,
-    ).returncode == 0
-    legacy = subprocess.run(
-        ["sudo", "iptables", "-L", "DOCKER-ISOLATION-STAGE-1", "-n"],
-        capture_output=True,
-    ).returncode == 0
-
-    if modern and not legacy:
-        print("Modern Docker detected (DOCKER-FORWARD chain present).")
-        print("  enable_icc=false already provides both ICC isolation and cross-bridge")
-        print("  routing via DOCKER-FORWARD — no DOCKER-USER rule needed.")
+    )
+    if probe.returncode != 0:
+        print("Warning: DOCKER-USER chain not found. Skipping rule insertion.")
+        print("  Ensure the Docker daemon is running and re-run 'lab_manager.py up'.")
         return
 
-    if not legacy:
-        print("Warning: neither DOCKER-FORWARD nor DOCKER-ISOLATION-STAGE-1 found.")
-        print("  Is the Docker daemon running?  Skipping iptables configuration.")
-        return
-
-    # Legacy path: insert the broad ACCEPT into DOCKER-USER idempotently.
-    print("Legacy Docker detected (DOCKER-ISOLATION-STAGE-1 present).")
+    # Idempotency check — iptables -C exits 0 if the rule already exists.
     check = subprocess.run(
         ["sudo", "iptables", "-C", "DOCKER-USER",
          "-i", "br-+", "-o", "br-+", "-j", "ACCEPT"],
@@ -88,12 +71,13 @@ def apply_docker_user_rules():
     if check.returncode == 0:
         print("DOCKER-USER: Cross-bridge ACCEPT rule already present (idempotent).")
         return
+
     subprocess.run(
         ["sudo", "iptables", "-I", "DOCKER-USER",
          "-i", "br-+", "-o", "br-+", "-j", "ACCEPT"],
         check=True,
     )
-    print("DOCKER-USER: Cross-bridge ACCEPT rule inserted for legacy Docker.")
+    print("DOCKER-USER: Cross-bridge ACCEPT rule inserted successfully.")
 
 
 def run_compose(action, profile=None):
