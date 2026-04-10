@@ -38,46 +38,55 @@ def check_preflight():
 
 
 def apply_docker_user_rules():
-    """Insert a rule into the DOCKER-USER iptables chain so the firewall container
-    can route packets across Docker bridge networks.
+    """Insert iptables rules to allow the firewall container to route packets
+    across Docker bridge networks while maintaining strict ICC=false isolation.
 
-    Docker's DOCKER-ISOLATION-STAGE chains block inter-bridge forwarding by
-    default.  The DOCKER-USER chain is evaluated *before* those chains, so an
-    ACCEPT rule here lets the firewall container perform L3 routing while still
-    allowing per-bridge ICC=false isolation to enforce intra-network separation.
+    Docker's ICC=false drops intra-bridge traffic and also creates PREROUTING
+    raw table drop rules for inter-bridge spoofing. We must insert exceptions
+    to allow traffic destined for other subnets to be routed through the firewall
+    container.
 
-    The rule is inserted idempotently: if it already exists no change is made.
-    Requires the Docker daemon (and therefore the DOCKER-USER chain) to be
-    running before this function is called.
+    The rules are inserted idempotently: if they already exist, no change is made.
     """
-    print("Configuring DOCKER-USER iptables chain for cross-bridge routing...")
+    print("Configuring iptables for cross-bridge routing while maintaining icc=false...")
 
-    # Verify the DOCKER-USER chain exists (implies Docker daemon is running).
-    probe = subprocess.run(
-        ["sudo", "iptables", "-L", "DOCKER-USER", "-n"],
-        capture_output=True,
-    )
-    if probe.returncode != 0:
-        print("Warning: DOCKER-USER chain not found. Skipping rule insertion.")
-        print("  Ensure the Docker daemon is running and re-run 'lab_manager.py up'.")
-        return
+    rules = [
+        # Bypass raw table drops for routed cross-subnet traffic
+        ["-t", "raw", "-I", "PREROUTING", "-s", "10.10.10.0/24", "!", "-d", "10.10.10.0/24", "-j", "ACCEPT"],
+        ["-t", "raw", "-I", "PREROUTING", "-s", "10.10.20.0/24", "!", "-d", "10.10.20.0/24", "-j", "ACCEPT"],
+        ["-t", "raw", "-I", "PREROUTING", "-s", "10.10.30.0/24", "!", "-d", "10.10.30.0/24", "-j", "ACCEPT"],
+        
+        # Bypass raw table drops for traffic explicitly to the firewall's IP
+        ["-t", "raw", "-I", "PREROUTING", "-d", "10.10.10.254", "-j", "ACCEPT"],
+        ["-t", "raw", "-I", "PREROUTING", "-d", "10.10.20.254", "-j", "ACCEPT"],
+        ["-t", "raw", "-I", "PREROUTING", "-d", "10.10.30.254", "-j", "ACCEPT"],
 
-    # Idempotency check — iptables -C exits 0 if the rule already exists.
-    check = subprocess.run(
-        ["sudo", "iptables", "-C", "DOCKER-USER",
-         "-i", "br-+", "-o", "br-+", "-j", "ACCEPT"],
-        capture_output=True,
-    )
-    if check.returncode == 0:
-        print("DOCKER-USER: Cross-bridge ACCEPT rule already present (idempotent).")
-        return
+        # Allow cross-subnet traffic through DOCKER-USER (bypasses DOCKER-FORWARD drops)
+        ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.10.0/24", "!", "-d", "10.10.10.0/24", "-j", "ACCEPT"],
+        ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.20.0/24", "!", "-d", "10.10.20.0/24", "-j", "ACCEPT"],
+        ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.30.0/24", "!", "-d", "10.10.30.0/24", "-j", "ACCEPT"],
 
-    subprocess.run(
-        ["sudo", "iptables", "-I", "DOCKER-USER",
-         "-i", "br-+", "-o", "br-+", "-j", "ACCEPT"],
-        check=True,
-    )
-    print("DOCKER-USER: Cross-bridge ACCEPT rule inserted successfully.")
+        # Allow containers to talk to the firewall's IP directly in DOCKER-USER
+        ["-t", "filter", "-I", "DOCKER-USER", "-d", "10.10.10.254", "-j", "ACCEPT"],
+        ["-t", "filter", "-I", "DOCKER-USER", "-d", "10.10.20.254", "-j", "ACCEPT"],
+        ["-t", "filter", "-I", "DOCKER-USER", "-d", "10.10.30.254", "-j", "ACCEPT"],
+        ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.10.254", "-j", "ACCEPT"],
+        ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.20.254", "-j", "ACCEPT"],
+        ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.30.254", "-j", "ACCEPT"],
+    ]
+
+    for rule in rules:
+        check_cmd = ["sudo", "iptables", "-C"] + rule[3:]
+        if "-t" in rule:
+            check_cmd = ["sudo", "iptables", "-t", rule[1], "-C"] + rule[4:]
+        
+        check = subprocess.run(check_cmd, capture_output=True)
+        if check.returncode != 0:
+            subprocess.run(["sudo", "iptables"] + rule, check=True)
+
+    # Remove the broken old rule if it exists (which broke strict ICC=false)
+    subprocess.run(["sudo", "iptables", "-D", "DOCKER-USER", "-i", "br-+", "-o", "br-+", "-j", "ACCEPT"], capture_output=True)
+    print("DOCKER-USER/raw PREROUTING: Cross-bridge ACCEPT rules applied.")
 
 
 def run_compose(action, profile=None):
@@ -109,7 +118,7 @@ def main():
         print("Waiting for containers to initialize (15s)...")
         time.sleep(15)
         print("Running validation script...")
-        subprocess.run(["./validation.sh"])
+        subprocess.run(["bash", "-x", "./validation.sh"])
     elif action == "down":
         run_compose("down")
     elif action == "build":

@@ -61,10 +61,11 @@ services:
     user: "0:0"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "iptables", "-L"]
+      test: ["CMD-SHELL", "iptables -L"]
       interval: 30s
       timeout: 10s
       retries: 3
+    command: /firewall-rules.sh
     sysctls:
       - net.ipv4.ip_forward=1
 
@@ -137,6 +138,7 @@ services:
         ipv4_address: 10.10.30.10
     environment:
       - WAZUH_ADMIN_PASSWORD=${WAZUH_ADMIN_PASSWORD}
+      - S6_READ_ONLY_ROOT=1
     deploy:
       resources:
         limits:
@@ -163,13 +165,14 @@ services:
       - SYS_RESOURCE
       - SETFCAP
       - SETPCAP
+      - KILL
     security_opt:
       - no-new-privileges:true
     read_only: true
     tmpfs:
       - /tmp
-      - /run
-      - /var/run
+      - /run:exec,mode=755
+      - /var/run:exec,mode=755
       - /var/ossec/api/configuration
       - /var/ossec/etc
       - /var/ossec/logs
@@ -180,9 +183,9 @@ services:
       - /var/ossec/agentless
       - /var/ossec/wodles
       - /etc/filebeat
-      - /var/ossec/data_tmp/exclusion
       - /var/ossec/var/run
-      - /var/ossec/data_tmp/permanent
+      - /var/ossec/var/start-script-lock
+      - /var/lib/filebeat
     volumes:
       - wazuh_data:/var/ossec/data
     restart: unless-stopped

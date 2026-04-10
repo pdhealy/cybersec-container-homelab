@@ -1,4 +1,5 @@
 #!/bin/bash
+echo "Firewall rules script is running!"
 
 # Apply firewall rules
 iptables -F
