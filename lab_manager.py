@@ -76,9 +76,9 @@ def apply_docker_user_rules():
     ]
 
     for rule in rules:
-        check_cmd = ["sudo", "iptables", "-C"] + rule[3:]
+        check_cmd = ["sudo", "iptables", "-C", rule[1]] + rule[2:]
         if "-t" in rule:
-            check_cmd = ["sudo", "iptables", "-t", rule[1], "-C"] + rule[4:]
+            check_cmd = ["sudo", "iptables", "-t", rule[1], "-C", rule[3]] + rule[4:]
         
         check = subprocess.run(check_cmd, capture_output=True)
         if check.returncode != 0:
