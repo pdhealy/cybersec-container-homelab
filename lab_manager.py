@@ -118,7 +118,7 @@ def main():
         print("Waiting for containers to initialize (15s)...")
         time.sleep(15)
         print("Running validation script...")
-        subprocess.run(["bash", "-x", "./validation.sh"])
+        subprocess.run(["bash", "-x", "./validation.sh"], check=True)
     elif action == "down":
         run_compose("down")
     elif action == "build":

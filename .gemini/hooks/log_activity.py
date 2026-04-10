@@ -5,9 +5,6 @@ import os
 import traceback
 from datetime import datetime, timezone
 
-LOG_FILE = os.path.join(os.getcwd(), '.gemini', 'logs', 'actions.log')
-DEBUG_FILE = os.path.join(os.getcwd(), '.gemini', 'logs', 'hook_debug.log')
-
 def main():
     try:
         input_data = sys.stdin.read()
@@ -19,9 +16,13 @@ def main():
         
         # Get cwd from payload if available, else use os.getcwd()
         cwd = data.get("cwd", os.getcwd())
-        actual_log_file = os.path.join(cwd, '.gemini', 'logs', 'actions.log')
         
-        timestamp = data.get("timestamp", datetime.now(timezone.utc).isoformat())
+        now = datetime.now(timezone.utc)
+        date_str = now.strftime('%Y-%m-%d')
+        log_dir = os.path.join(cwd, '.gemini', 'logs', date_str)
+        actual_log_file = os.path.join(log_dir, 'actions.log')
+        
+        timestamp = data.get("timestamp", now.isoformat())
         action = data.get("hook_event_name", "UnknownAction")
         
         # Action details
@@ -34,7 +35,7 @@ def main():
             details["raw_data_keys"] = list(data.keys())
             
         # Ensure log directory exists
-        os.makedirs(os.path.dirname(actual_log_file), exist_ok=True)
+        os.makedirs(log_dir, exist_ok=True)
         
         with open(actual_log_file, "a") as f:
             f.write(f"[{timestamp}] ACTION: {action} | DETAILS: {json.dumps(details)}\n")
@@ -42,8 +43,12 @@ def main():
     except Exception as e:
         # log errors to a debug file
         try:
-            os.makedirs(os.path.dirname(DEBUG_FILE), exist_ok=True)
-            with open(DEBUG_FILE, "a") as f:
+            cwd = os.getcwd()
+            now = datetime.now(timezone.utc)
+            date_str = now.strftime('%Y-%m-%d')
+            debug_log_file = os.path.join(cwd, '.gemini', 'logs', date_str, 'hook_debug.log')
+            os.makedirs(os.path.dirname(debug_log_file), exist_ok=True)
+            with open(debug_log_file, "a") as f:
                 f.write(f"Error: {str(e)}\n{traceback.format_exc()}\n")
         except:
             pass

@@ -34,7 +34,8 @@
           {
             "name": "logger",
             "type": "command",
-            "command": ".gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.sh",
+            "enabled": true
           }
         ]
       }
@@ -46,7 +47,8 @@
           {
             "name": "logger",
             "type": "command",
-            "command": ".gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.sh",
+            "enabled": true
           }
         ]
       }
@@ -56,9 +58,10 @@
         "matcher": "*",
         "hooks": [
           {
-            "name": "logger",
+            "name": "logger-SessionStart",
             "type": "command",
-            "command": ".gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.py",
+            "enabled": false
           }
         ]
       }
@@ -68,9 +71,10 @@
         "matcher": "*",
         "hooks": [
           {
-            "name": "logger",
+            "name": "logger-SessionEnd",
             "type": "command",
-            "command": ".gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.py",
+            "enabled": false
           }
         ]
       }
@@ -80,9 +84,10 @@
         "matcher": "*",
         "hooks": [
           {
-            "name": "logger",
+            "name": "logger-BeforeAgent",
             "type": "command",
-            "command": ".gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.py",
+            "enabled": false
           }
         ]
       }
@@ -92,9 +97,10 @@
         "matcher": "*",
         "hooks": [
           {
-            "name": "logger",
+            "name": "logger-AfterAgent",
             "type": "command",
-            "command": ".gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.py",
+            "enabled": false
           }
         ]
       }
@@ -104,9 +110,10 @@
         "matcher": "*",
         "hooks": [
           {
-            "name": "logger",
+            "name": "logger-BeforeModel",
             "type": "command",
-            "command": ".gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.py",
+            "enabled": false
           }
         ]
       }
@@ -116,9 +123,10 @@
         "matcher": "*",
         "hooks": [
           {
-            "name": "logger",
+            "name": "logger-AfterModel",
             "type": "command",
-            "command": ".gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.py",
+            "enabled": false
           }
         ]
       }
@@ -128,9 +136,10 @@
         "matcher": "*",
         "hooks": [
           {
-            "name": "logger",
+            "name": "logger-BeforeToolSelection",
             "type": "command",
-            "command": ".gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.py",
+            "enabled": false
           }
         ]
       }
@@ -140,9 +149,10 @@
         "matcher": "*",
         "hooks": [
           {
-            "name": "logger",
+            "name": "logger-Notification",
             "type": "command",
-            "command": ".gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.py",
+            "enabled": false
           }
         ]
       }
@@ -152,15 +162,27 @@
         "matcher": "*",
         "hooks": [
           {
-            "name": "logger",
+            "name": "logger-PreCompress",
             "type": "command",
-            "command": ".gemini/hooks/log_activity.py"
+            "command": ".gemini/hooks/log_activity.py",
+            "enabled": false
           }
         ]
       }
     ]
   },
   "hooksConfig": {
-    "enabled": true
+    "enabled": true,
+    "disabled": [
+      "logger-BeforeAgent",
+      "logger-AfterModel",
+      "logger-BeforeModel",
+      "logger-SessionEnd",
+      "logger-SessionStart",
+      "logger-PreCompress",
+      "logger-Notification",
+      "logger-AfterAgent",
+      "logger-BeforeToolSelection"
+    ]
   }
 }

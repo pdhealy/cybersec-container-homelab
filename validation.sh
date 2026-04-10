@@ -29,7 +29,7 @@ done
 # ---------------------------------------------------------------------------
 echo ""
 echo "2. Runtime & Security Context Validation"
-for c in attacker-node firewall pihole wazuh-manager vulnerable-target; do
+for c in attacker-node firewall pihole wazuh-manager vulnerable-target atomic-red; do
     echo "  Container: $c"
     docker inspect "$c" --format '    ReadonlyRootfs: {{.HostConfig.ReadonlyRootfs}}' 2>/dev/null || echo "    (not running)"
     docker inspect "$c" --format '    SecurityOpt:    {{.HostConfig.SecurityOpt}}'    2>/dev/null || true
@@ -52,6 +52,13 @@ if docker exec attacker-node ping -c 1 -W 4 10.10.20.10 > /dev/null 2>&1; then
     result PASS "Firewall routed attacker -> DMZ successfully"
 else
     result FAIL "Firewall failed to route attacker -> DMZ"
+fi
+
+echo "  Firewall Enforcement (atomic-red -> vulnerable-target, cross-bridge — must PASS)"
+if docker exec atomic-red ping -c 1 -W 4 10.10.20.10 > /dev/null 2>&1; then
+    result PASS "Firewall routed atomic-red -> DMZ successfully"
+else
+    result FAIL "Firewall failed to route atomic-red -> DMZ"
 fi
 
 echo "  Drop Policy (vulnerable-target -> attacker, no reverse route — must FAIL)"

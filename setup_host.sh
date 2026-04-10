@@ -47,7 +47,9 @@ configure_docker_user_chain() {
         )
 
         for rule in "${RULES[@]}"; do
-            if ! iptables -C $rule 2>/dev/null; then
+            # Replace -I with -C to check if the rule already exists
+            check_rule="${rule/-I /-C }"
+            if ! iptables $check_rule 2>/dev/null; then
                 iptables $rule
             fi
         done
