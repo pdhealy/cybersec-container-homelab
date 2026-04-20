@@ -1,3 +1,4 @@
 logs/
 .env
-.planning/
+.planning/__pycache__/
+tests/__pycache__/
