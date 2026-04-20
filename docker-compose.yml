@@ -53,6 +53,8 @@ services:
     tmpfs:
       - /tmp
       - /run
+      - /var/log
+      - /var/spool/rsyslog
     # iptables requires uid 0 even when CAP_NET_ADMIN is granted. The Dockerfile
     # defines USER 1000:1000 as the default, so we override here explicitly.
     # Future work: migrate to macvlan/ipvlan to decouple L3 routing from

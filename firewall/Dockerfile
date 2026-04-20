@@ -1,13 +1,25 @@
-FROM alpine@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
+FROM debian:bookworm-slim
 
-RUN apk add --no-cache iptables bash tcpdump busybox-extras && \
-    addgroup -g 1000 firewall && \
-    adduser -u 1000 -G firewall -D firewall
+RUN apt-get update && apt-get install -y \
+    iptables \
+    ulogd2 \
+    rsyslog \
+    iproute2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# The Debian package for ulogd2 might create a 'ulog' user. 
+# We'll create our 'firewall' user just in case, though the service
+# override in docker-compose.yml uses user: "0:0".
+RUN groupadd -g 1000 firewall && \
+    useradd -u 1000 -g firewall -s /bin/bash -m firewall
 
 COPY firewall-rules.sh /firewall-rules.sh
+COPY ulogd.conf /etc/ulogd.conf
+COPY rsyslog.conf /etc/rsyslog.conf
+
 RUN chmod +x /firewall-rules.sh
 
-USER 1000:1000
-
+# Run as root because iptables and ulogd (netlink) require it.
+USER root
 
 CMD ["/firewall-rules.sh"]
