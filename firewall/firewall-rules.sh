@@ -17,6 +17,9 @@ iptables -A FORWARD -s 10.10.10.0/24 -d 10.10.20.0/24 -j ACCEPT
 # Allow Attacker to SIEM
 iptables -A FORWARD -s 10.10.10.0/24 -d 10.10.30.0/24 -j ACCEPT
 
+# Allow DMZ to send syslog to SIEM
+iptables -A FORWARD -s 10.10.20.0/24 -d 10.10.30.10 -p udp --dport 514 -j ACCEPT
+
 # Start syslogd first and wait for it to create /dev/log before other daemons
 # connect.  -n: don't daemonize  -R host:port: forward to SIEM  -L: log locally
 syslogd -n -R 10.10.30.10:514 -L &
@@ -38,15 +41,20 @@ done
 # -n       : no reverse DNS lookups
 # -l       : line-buffered so the pipeline sees output immediately
 # awk      : extract source and destination IPs, then call logger once per packet
-tcpdump -l -i eth2 -n 'src net 10.10.10.0/24 and dst net 10.10.20.0/24' 2>/dev/null | \
+tcpdump -l -i any -n 'src net 10.10.10.0/24 and dst net 10.10.20.0/24' 2>/dev/null | \
 awk '{
     src=""; dst="";
     for(i=1;i<=NF;i++){
-        if($i ~ /^10\.10\.10\.[0-9]+$/)            src=$i;
-        if($i ~ /^10\.10\.20\.[0-9]+(:|>)/)        dst=substr($i,1,index($i,".")+2);
+        if($i ~ /^10\.10\.10\.[0-9]+/) {
+            split($i, a, ".");
+            src = a[1] "." a[2] "." a[3] "." a[4];
+        }
+        if($i ~ /^10\.10\.20\.[0-9]+/) {
+            split($i, a, ".");
+            dst = a[1] "." a[2] "." a[3] "." a[4];
+            gsub(/[^0-9.]/, "", dst); 
+        }
     }
-    # re-extract dst properly (remove trailing : or >)
-    n=split($0,a," "); for(j=1;j<=n;j++){ if(a[j]~/^10\.10\.20\.[0-9]/) { gsub(/[^0-9.]/,"",a[j]); dst=a[j]; break }}
     if(src!="" && dst!=""){
         cmd="logger -t kernel \"FW_FORWARD_ATTACK: IN=eth2 OUT=eth1 SRC=" src " DST=" dst " PROTO=IP\"";
         system(cmd);

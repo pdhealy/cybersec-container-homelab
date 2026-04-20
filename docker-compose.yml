@@ -222,6 +222,8 @@ services:
       - /var/lib/samba
       - /etc/samba
       - /root/.vnc
+    volumes:
+      - ./vulnerable-target/syslog.conf:/etc/syslog.conf:ro
     restart: unless-stopped
     depends_on:
       firewall:
