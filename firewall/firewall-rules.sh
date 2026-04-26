@@ -18,6 +18,13 @@ iptables -A FORWARD -s 10.10.10.0/24 -d 10.10.20.0/24 -j ACCEPT
 # Allow Attacker to SIEM
 iptables -A FORWARD -s 10.10.10.0/24 -d 10.10.30.0/24 -j ACCEPT
 
+# Allow DMZ to Pi-hole (DNS)
+iptables -A FORWARD -s 10.10.20.0/24 -d 10.10.30.5 -p udp --dport 53 -j ACCEPT
+iptables -A FORWARD -s 10.10.20.0/24 -d 10.10.30.5 -p tcp --dport 53 -j ACCEPT
+
+# Allow Internal to SIEM (Syslog)
+iptables -A FORWARD -s 10.10.30.0/24 -d 10.10.30.0/24 -j ACCEPT
+
 # Allow DMZ to send syslog to SIEM
 iptables -A FORWARD -s 10.10.20.0/24 -d 10.10.30.10 -p udp --dport 514 -j ACCEPT
 

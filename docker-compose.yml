@@ -79,6 +79,8 @@ services:
     environment:
       - WEBPASSWORD=${PIHOLE_PASSWORD}
       - DNSMASQ_USER=root
+    volumes:
+      - ./pi-hole/99-logging.conf:/etc/dnsmasq.d/99-logging.conf:ro
     deploy:
       resources:
         limits:
@@ -203,12 +205,25 @@ services:
     profiles: ["splunk"]
     image: splunk/splunk:latest
     container_name: splunk
-    # Placeholder for future Splunk service
+    networks:
+      internal_net:
+        ipv4_address: 10.10.30.15
+    environment:
+      - SPLUNK_START_ARGS=--accept-license
+      - SPLUNK_PASSWORD=cyberhomelab_splunk_secure
+    volumes:
+      - ./splunk/inputs.conf:/opt/splunk/etc/system/local/inputs.conf:ro
+    restart: unless-stopped
+    depends_on:
+      firewall:
+        condition: service_healthy
 
   vulnerable-target:
     profiles: ["metasploitable2"]
     image: tleemcjr/metasploitable2@sha256:e559450b37dccc1909eafa2df5b20bb052e1bd801246f4539a3ef183d5f7288a
     container_name: vulnerable-target
+    dns:
+      - 10.10.30.5
     networks:
       dmz_net:
         ipv4_address: 10.10.20.10
