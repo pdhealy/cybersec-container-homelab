@@ -1,9 +1,0 @@
-Review file `workspace/cyber-homelab/.planning/plan.md`. Critique the details, and approach, and generate a detailed phased plan that you can execute later. Current directory `workspace/cyber-homelab` will house all files described in `workspace/cyber-homelab/.planning/plan_.md`. Use the Google Search tool to conduct deep research where required. You must output the new phased plan to a seperate file call `workspace/cyber-homelab/.planning/plan_phased.md`. All plans, recommendations, and configurations must align with Google-grade production-level quality, security, standards and principles. 
-
----
-
-Read and review file `workspace/cyber-homelab/.planning/plan_phased.md`. You must incorporate a comprehensive testing and validation phase into file `workspace/cyber-homelab/.planning/plan_phased.md`. The testing and validation must be performed by Gemini CLI. You must test the full implmentation and configuration end to end using command line tools, such as docker etc. You must test, for example, the build process and runtime for each container, as well as expected connectivity between each container. All plans, activities, architecture, configurations and recommendations must align with Google-grade production-level quality, security, standards and principles.  Use the Google Search tool to conduct deep extensive research on the topic before making any code or file changes.
-
----
-
-Perform a detailed review of file `workspace/cyber-homelab/.planning/plan_phased.md`. The plan and it's desired output must align with Google-grade production-level quality, security, performance, architecture, fault tolerance, visibilty, standards, software engineering and security engineering principles, and industry best-practices. Use your Google Search tool or agent to conduct deep extensive research on the key relevant topics. Use the Lauch Codebase Investigator Agent 'codebase_investigator' agent also to assist.  

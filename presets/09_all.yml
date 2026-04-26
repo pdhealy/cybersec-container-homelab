@@ -1,0 +1,9 @@
+name: "All Components"
+description: "Deploys all attacker, target, and SIEM components"
+profiles:
+  - kali
+  - atomicred
+  - metasploitable2
+  - ubuntu
+  - wazuh
+  - splunk

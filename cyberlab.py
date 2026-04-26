@@ -4,17 +4,18 @@ import os
 import sys
 import subprocess
 import time
-
+import argparse
+import glob
+import yaml
+import questionary
 
 def check_preflight():
     print("Running pre-flight checks...")
 
-    # Check .env
     if not os.path.exists(".env"):
         print("Error: .env file missing. Please run setup_host.sh or create .env")
         sys.exit(1)
 
-    # Check max_map_count
     try:
         with open("/proc/sys/vm/max_map_count", "r") as f:
             max_map_count = int(f.read().strip())
@@ -24,7 +25,6 @@ def check_preflight():
     except FileNotFoundError:
         print("Warning: Could not read /proc/sys/vm/max_map_count.")
 
-    # Check swap
     try:
         with open("/proc/swaps", "r") as f:
             lines = f.readlines()
@@ -36,37 +36,19 @@ def check_preflight():
 
     print("Pre-flight checks passed.")
 
-
 def apply_docker_user_rules():
-    """Insert iptables rules to allow the firewall container to route packets
-    across Docker bridge networks while maintaining strict ICC=false isolation.
-
-    Docker's ICC=false drops intra-bridge traffic and also creates PREROUTING
-    raw table drop rules for inter-bridge spoofing. We must insert exceptions
-    to allow traffic destined for other subnets to be routed through the firewall
-    container.
-
-    The rules are inserted idempotently: if they already exist, no change is made.
-    """
     print("Configuring iptables for cross-bridge routing while maintaining icc=false...")
 
     rules = [
-        # Bypass raw table drops for routed cross-subnet traffic
         ["-t", "raw", "-I", "PREROUTING", "-s", "10.10.10.0/24", "!", "-d", "10.10.10.0/24", "-j", "ACCEPT"],
         ["-t", "raw", "-I", "PREROUTING", "-s", "10.10.20.0/24", "!", "-d", "10.10.20.0/24", "-j", "ACCEPT"],
         ["-t", "raw", "-I", "PREROUTING", "-s", "10.10.30.0/24", "!", "-d", "10.10.30.0/24", "-j", "ACCEPT"],
-        
-        # Bypass raw table drops for traffic explicitly to the firewall's IP
         ["-t", "raw", "-I", "PREROUTING", "-d", "10.10.10.254", "-j", "ACCEPT"],
         ["-t", "raw", "-I", "PREROUTING", "-d", "10.10.20.254", "-j", "ACCEPT"],
         ["-t", "raw", "-I", "PREROUTING", "-d", "10.10.30.254", "-j", "ACCEPT"],
-
-        # Allow cross-subnet traffic through DOCKER-USER (bypasses DOCKER-FORWARD drops)
         ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.10.0/24", "!", "-d", "10.10.10.0/24", "-j", "ACCEPT"],
         ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.20.0/24", "!", "-d", "10.10.20.0/24", "-j", "ACCEPT"],
         ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.30.0/24", "!", "-d", "10.10.30.0/24", "-j", "ACCEPT"],
-
-        # Allow containers to talk to the firewall's IP directly in DOCKER-USER
         ["-t", "filter", "-I", "DOCKER-USER", "-d", "10.10.10.254", "-j", "ACCEPT"],
         ["-t", "filter", "-I", "DOCKER-USER", "-d", "10.10.20.254", "-j", "ACCEPT"],
         ["-t", "filter", "-I", "DOCKER-USER", "-d", "10.10.30.254", "-j", "ACCEPT"],
@@ -84,15 +66,71 @@ def apply_docker_user_rules():
         if check.returncode != 0:
             subprocess.run(["sudo", "iptables"] + rule, check=True)
 
-    # Remove the broken old rule if it exists (which broke strict ICC=false)
     subprocess.run(["sudo", "iptables", "-D", "DOCKER-USER", "-i", "br-+", "-o", "br-+", "-j", "ACCEPT"], capture_output=True)
     print("DOCKER-USER/raw PREROUTING: Cross-bridge ACCEPT rules applied.")
 
+def get_presets():
+    presets = []
+    for f in sorted(glob.glob("presets/*.yml")):
+        with open(f, 'r') as file:
+            preset = yaml.safe_load(file)
+            presets.append((f, preset))
+    return presets
 
-def run_compose(action, profile=None):
+def write_active_lab_env(profiles):
+    with open(".active_lab.env", "w") as f:
+        for p in profiles:
+            f.write(f"ACTIVE_{p.upper()}=true\n")
+    print("Generated .active_lab.env")
+
+def interactive_mode():
+    mode = questionary.select(
+        "Choose a deployment mode:",
+        choices=["Preset (Recommended)", "Manual Configuration"]
+    ).ask()
+
+    if not mode:
+        sys.exit(0)
+
+    profiles = []
+    if mode.startswith("Preset"):
+        presets = get_presets()
+        choices = [f"{p[1]['name']} - {p[1]['description']}" for p in presets]
+        selection = questionary.select("Select a preset:", choices=choices).ask()
+        if not selection:
+            sys.exit(0)
+        idx = choices.index(selection)
+        profiles = presets[idx][1].get("profiles", [])
+    else:
+        attackers = questionary.checkbox(
+            "Select Attacker Node(s):",
+            choices=["kali", "atomicred"]
+        ).ask()
+        
+        targets = questionary.checkbox(
+            "Select Vulnerable Target(s):",
+            choices=["metasploitable2", "ubuntu"]
+        ).ask()
+        
+        siems = questionary.checkbox(
+            "Select SIEM(s):",
+            choices=["wazuh", "splunk"]
+        ).ask()
+
+        if attackers is None or targets is None or siems is None:
+            sys.exit(0)
+
+        profiles = attackers + targets + siems
+
+    return profiles
+
+def run_compose(action, profiles=None):
     cmd = ["docker", "compose"]
-    if profile:
-        cmd.extend(["--profile", profile])
+    if action == "down":
+        cmd.extend(["--profile", "*"])
+    elif profiles:
+        for p in profiles:
+            cmd.extend(["--profile", p])
     cmd.append(action)
     if action == "up":
         cmd.append("-d")
@@ -100,20 +138,42 @@ def run_compose(action, profile=None):
     print(f"Executing: {' '.join(cmd)}")
     subprocess.run(cmd, check=True)
 
-
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: ./lab_manager.py [up|down|build|status]")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Cyber Homelab Management CLI")
+    parser.add_argument("action", nargs="?", choices=["up", "down", "build", "status"], default=None, help="Action to perform")
+    parser.add_argument("--preset", type=str, help="Path to a preset YAML file to use directly")
+    parser.add_argument("--profiles", type=str, help="Comma-separated list of profiles for manual deployment")
+    
+    args = parser.parse_args()
 
-    action = sys.argv[1]
+    action = args.action
+
+    if not action:
+        action = questionary.select(
+            "What would you like to do?",
+            choices=["up", "down", "build", "status"]
+        ).ask()
+        if not action:
+            sys.exit(0)
 
     if action == "up":
         check_preflight()
-        run_compose("up")
-        # Apply host-level iptables rules that allow the firewall container to
-        # route across Docker bridge networks.  Must run after compose up so that
-        # the DOCKER-USER chain (created by the Docker daemon) is available.
+        
+        profiles = []
+        if args.preset:
+            with open(args.preset, 'r') as f:
+                preset = yaml.safe_load(f)
+                profiles = preset.get("profiles", [])
+        elif args.profiles:
+            profiles = args.profiles.split(",")
+        else:
+            profiles = interactive_mode()
+            if not profiles:
+                print("No profiles selected. Exiting.")
+                sys.exit(0)
+
+        write_active_lab_env(profiles)
+        run_compose("up", profiles)
         apply_docker_user_rules()
         print("Waiting for containers to initialize (15s)...")
         time.sleep(15)
@@ -123,14 +183,12 @@ def main():
         subprocess.run(["bash", "-x", "./tests/test_attack_logging.sh"], check=True)
     elif action == "down":
         run_compose("down")
+        if os.path.exists(".active_lab.env"):
+            os.remove(".active_lab.env")
     elif action == "build":
         run_compose("build")
     elif action == "status":
         subprocess.run(["docker", "compose", "ps"])
-    else:
-        print(f"Unknown action: {action}")
-        sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

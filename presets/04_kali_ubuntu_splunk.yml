@@ -1,0 +1,6 @@
+name: "Kali -> Ubuntu -> Splunk"
+description: "Penetration testing setup against Ubuntu with Splunk SIEM"
+profiles:
+  - kali
+  - ubuntu
+  - splunk

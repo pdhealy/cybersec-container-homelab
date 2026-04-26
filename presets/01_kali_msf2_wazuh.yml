@@ -1,0 +1,6 @@
+name: "Kali -> Metasploitable2 -> Wazuh"
+description: "Standard penetration testing setup with Wazuh SIEM"
+profiles:
+  - kali
+  - metasploitable2
+  - wazuh
