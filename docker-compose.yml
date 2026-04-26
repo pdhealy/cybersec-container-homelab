@@ -47,6 +47,7 @@ services:
       - NET_ADMIN
       - NET_RAW
       - SYSLOG
+      - NET_BIND_SERVICE
     security_opt:
       - no-new-privileges:true
     read_only: true
@@ -79,8 +80,8 @@ services:
     environment:
       - WEBPASSWORD=${PIHOLE_PASSWORD}
       - DNSMASQ_USER=root
-    volumes:
-      - ./pi-hole/99-logging.conf:/etc/dnsmasq.d/99-logging.conf:ro
+      - FTLCONF_dns_listeningMode=ALL
+      - FTLCONF_files_log_dnsmasq=-
     deploy:
       resources:
         limits:
@@ -118,10 +119,10 @@ services:
       - /var/cache/lighttpd
       - /etc/lighttpd
     logging:
-      driver: "json-file"
+      driver: "syslog"
       options:
-        max-size: "10m"
-        max-file: "3"
+        syslog-address: "udp://10.10.30.254:514"
+        tag: "pihole"
     restart: unless-stopped
     depends_on:
       firewall:
@@ -212,8 +213,6 @@ services:
       - SPLUNK_START_ARGS=--accept-license
       - SPLUNK_GENERAL_TERMS=--accept-sgt-current-at-splunk-com
       - SPLUNK_PASSWORD=cyberhomelab_splunk_secure
-    volumes:
-      - ./splunk/inputs.conf:/opt/splunk/etc/system/local/inputs.conf:ro
     restart: unless-stopped
     depends_on:
       firewall:
