@@ -210,6 +210,7 @@ services:
         ipv4_address: 10.10.30.15
     environment:
       - SPLUNK_START_ARGS=--accept-license
+      - SPLUNK_GENERAL_TERMS=--accept-sgt-current-at-splunk-com
       - SPLUNK_PASSWORD=cyberhomelab_splunk_secure
     volumes:
       - ./splunk/inputs.conf:/opt/splunk/etc/system/local/inputs.conf:ro
@@ -232,6 +233,11 @@ services:
     cap_add:
       - NET_ADMIN
       - NET_RAW
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - FOWNER
     security_opt:
       - no-new-privileges:true
     read_only: true

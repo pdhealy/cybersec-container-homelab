@@ -3,3 +3,4 @@ logs/
 .planning/
 __pycache__/
 tests/__pycache__/
+.active_lab.env
