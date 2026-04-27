@@ -12,8 +12,8 @@ import unittest
 from unittest.mock import patch, mock_open, MagicMock
 
 # Add the parent directory to the Python path to import lab_manager
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-import lab_manager
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
+from cyberlab import cli as lab_manager
 
 
 class TestLabManagerPreflight(unittest.TestCase):
@@ -122,46 +122,50 @@ class TestLabManagerCompose(unittest.TestCase):
     @patch('builtins.print')
     def test_run_compose_with_profile(self, mock_print, mock_run):
         """Test that compose profiles are correctly passed."""
-        lab_manager.run_compose("down", profile="core")
-        mock_run.assert_called_once_with(["docker", "compose", "--profile", "core", "down"], check=True)
+        lab_manager.run_compose("down", profiles=["core"])
+        mock_run.assert_called_once_with(["docker", "compose", "--profile", "*", "down"], check=True)
 
 
 class TestLabManagerMain(unittest.TestCase):
     """Test suite for the main orchestrator entry point."""
 
-    @patch('sys.argv', ['lab_manager.py', 'invalid_action'])
-    @patch('sys.exit')
-    @patch('builtins.print')
-    def test_invalid_action(self, mock_print, mock_exit):
+    @patch('sys.argv', ['cyberlab.py', 'invalid_action'])
+    @patch('sys.exit', side_effect=SystemExit(2))
+    @patch('sys.stderr.write')
+    def test_invalid_action(self, mock_stderr, mock_exit):
         """Test that an invalid action terminates the script."""
-        lab_manager.main()
-        mock_print.assert_called_with("Unknown action: invalid_action")
-        mock_exit.assert_called_once_with(1)
+        with self.assertRaises(SystemExit) as cm:
+            lab_manager.main()
+        self.assertEqual(cm.exception.code, 2)
+        mock_exit.assert_called_once_with(2)
 
-    @patch('sys.argv', ['lab_manager.py', 'status'])
+    @patch('sys.argv', ['cyberlab.py', 'status'])
+
     @patch('subprocess.run')
     def test_status_action(self, mock_run):
         """Test the 'status' action."""
         lab_manager.main()
         mock_run.assert_called_once_with(["docker", "compose", "ps"])
 
-    @patch('sys.argv', ['lab_manager.py', 'up'])
-    @patch('lab_manager.check_preflight')
-    @patch('lab_manager.run_compose')
-    @patch('lab_manager.apply_docker_user_rules')
+    @patch('sys.argv', ['cyberlab.py', 'up'])
+    @patch('cyberlab.cli.check_preflight')
+    @patch('cyberlab.cli.run_compose')
+    @patch('cyberlab.cli.apply_docker_user_rules')
     @patch('time.sleep')
     @patch('subprocess.run')
     @patch('builtins.print')
-    def test_up_action(self, mock_print, mock_run, mock_sleep, mock_apply, mock_compose, mock_preflight):
+    @patch('cyberlab.cli.interactive_mode', return_value=['core'])
+    @patch('cyberlab.cli.write_active_lab_env')
+    def test_up_action(self, mock_write, mock_interactive, mock_print, mock_run, mock_sleep, mock_apply, mock_compose, mock_preflight):
         """Test the comprehensive sequence of the 'up' action."""
         lab_manager.main()
         
         mock_preflight.assert_called_once()
-        mock_compose.assert_called_once_with("up")
+        mock_compose.assert_called_once_with("up", ["core"])
         mock_apply.assert_called_once()
         mock_sleep.assert_called_once_with(15)
         # Assert that the validation script is executed
-        mock_run.assert_called_once_with(["bash", "-x", "./validation.sh"], check=True)
+        mock_run.assert_any_call(["bash", "-x", "./scripts/validation.sh"], check=True)
 
 if __name__ == '__main__':
     unittest.main()

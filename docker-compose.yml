@@ -31,7 +31,7 @@ networks:
 services:
   firewall:
     build:
-      context: ./firewall
+      context: ./services/firewall
     image: homelab-firewall:latest
     container_name: firewall
     networks:
@@ -267,7 +267,13 @@ services:
     profiles: ["ubuntu"]
     image: ubuntu:latest
     container_name: ubuntu-target
-    # Placeholder for future Ubuntu service
+    networks:
+      dmz_net:
+        ipv4_address: 10.10.20.15
+    command: tail -f /dev/null
+    depends_on:
+      firewall:
+        condition: service_healthy
 
   attacker-node:
     profiles: ["kali"]
