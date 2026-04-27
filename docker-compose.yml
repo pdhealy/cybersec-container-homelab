@@ -204,7 +204,9 @@ services:
 
   splunk:
     profiles: ["splunk"]
-    image: splunk/splunk:latest
+    build:
+      context: ./splunk
+    image: homelab-splunk:latest
     container_name: splunk
     networks:
       internal_net:

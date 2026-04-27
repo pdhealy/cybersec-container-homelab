@@ -1,6 +1,50 @@
-logs/
+# --- Secrets and environment files ---
 .env
-.planning/
-__pycache__/
-tests/__pycache__/
+.env.*
+!.env.example
+!.env.template
 .active_lab.env
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+
+# --- Runtime logs and captures ---
+logs/
+*.log
+*.log.*
+*.pcap
+*.pcapng
+*.cap
+*.evtx
+
+# --- Python caches/build artifacts ---
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# --- Local virtualenvs ---
+.venv/
+venv/
+env/
+
+# --- Local tooling/editor state ---
+.planning/
+.claude/
+.gemini/
+GEMINI.md
+.DS_Store
+.idea/
+.vscode/

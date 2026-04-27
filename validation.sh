@@ -119,6 +119,23 @@ if [ "${ACTIVE_WAZUH:-false}" = "true" ]; then
     fi
 fi
 
+if [ "${ACTIVE_SPLUNK:-false}" = "true" ]; then
+    echo "  Waiting for Splunk to finish provisioning (polling for UDP 1514, up to 600s)..."
+    SPLUNK_READY=false
+    for attempt in $(seq 1 120); do
+        if docker exec splunk grep "05EA" /proc/net/udp > /dev/null 2>&1; then
+            result PASS "Splunk is ready and listening on UDP 1514 (attempt ${attempt}/120)"
+            SPLUNK_READY=true
+            break
+        fi
+        echo "    Splunk provisioning... (attempt ${attempt}/120) — retrying in 5s..."
+        sleep 5
+    done
+    if [ "$SPLUNK_READY" = "false" ]; then
+        result FAIL "Splunk did not finish provisioning within 600 seconds"
+    fi
+fi
+
 # ---------------------------------------------------------------------------
 echo ""
 echo "=== Validation Summary: ${PASS} PASS / ${FAIL} FAIL ==="
