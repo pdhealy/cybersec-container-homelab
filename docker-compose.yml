@@ -205,12 +205,14 @@ services:
   splunk:
     profiles: ["splunk"]
     build:
-      context: ./splunk
+      context: ./services/splunk
     image: homelab-splunk:latest
     container_name: splunk
     networks:
       internal_net:
         ipv4_address: 10.10.30.15
+    ports:
+      - "8000:8000"
     environment:
       - SPLUNK_START_ARGS=--accept-license
       - SPLUNK_GENERAL_TERMS=--accept-sgt-current-at-splunk-com
@@ -278,7 +280,7 @@ services:
   attacker-node:
     profiles: ["kali"]
     build:
-      context: ./attacker-node
+      context: ./services/attacker-node
     image: homelab-attacker:latest
     container_name: attacker-node
     networks:
