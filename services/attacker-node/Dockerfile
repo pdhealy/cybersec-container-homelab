@@ -4,11 +4,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     nmap \
     tcpdump \
     iproute2 \
+    python3 \
+    python3-pip \
+    python3-venv \
     sudo \
     iputils-ping \
     curl \
+    git \
     gosu \
     && rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m pip install --no-cache-dir --break-system-packages \
+    PyYAML \
+    questionary
 
 RUN useradd -m -s /bin/bash hacker && \
     echo "hacker:attacker" | chpasswd && \

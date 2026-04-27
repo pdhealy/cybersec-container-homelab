@@ -71,7 +71,7 @@ def apply_docker_user_rules():
 
 def get_presets():
     presets = []
-    for f in sorted(glob.glob("presets/*.yml")):
+    for f in sorted(glob.glob("configs/presets/*.yml")):
         with open(f, 'r') as file:
             preset = yaml.safe_load(file)
             presets.append((f, preset))
@@ -178,9 +178,9 @@ def main():
         print("Waiting for containers to initialize (15s)...")
         time.sleep(15)
         print("Running validation script...")
-        subprocess.run(["bash", "-x", "./validation.sh"], check=True)
+        subprocess.run(["bash", "-x", "./scripts/validation.sh"], check=True)
         print("Running attack logging integration test...")
-        subprocess.run(["bash", "-x", "./tests/test_attack_logging.sh"], check=True)
+        subprocess.run(["bash", "-x", "./tests/integration/test_attack_logging.sh"], check=True)
     elif action == "down":
         run_compose("down")
         if os.path.exists(".active_lab.env"):

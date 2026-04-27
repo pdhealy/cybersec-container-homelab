@@ -1,0 +1,8 @@
+services:
+  attacker-node:
+    read_only: false
+    volumes:
+      - ${PWD}:/workspace:cached
+    labels:
+      devcontainer.local_folder: ${PWD}
+      devcontainer.config_file: ${PWD}/.devcontainer/devcontainer.json

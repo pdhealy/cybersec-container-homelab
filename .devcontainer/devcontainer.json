@@ -1,17 +1,49 @@
 {
     "name": "Cyber Homelab Attacker",
-    "dockerComposeFile": "../docker-compose.yml",
+    "dockerComposeFile": [
+        "../docker-compose.yml",
+        "docker-compose.devcontainer.yml"
+    ],
     "service": "attacker-node",
+    "runServices": [
+        "firewall",
+        "attacker-node"
+    ],
+    "shutdownAction": "none",
     "workspaceFolder": "/workspace",
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+    "overrideCommand": false,
+    "updateRemoteUserUID": true,
+    "containerEnv": {
+        "HISTFILE": "/commandhistory/.bash_history",
+        "PIP_DISABLE_PIP_VERSION_CHECK": "1"
+    },
+    "mounts": [
+        "type=volume,source=cyberhomelab-pip-cache,target=/home/hacker/.cache/pip",
+        "type=volume,source=cyberhomelab-bash-history,target=/commandhistory"
+    ],
+    "postStartCommand": "git config --global --add safe.directory /workspace",
     "customizations": {
         "vscode": {
             "extensions": [
                 "ms-python.python",
+                "ms-python.vscode-pylance",
+                "ms-python.black-formatter",
                 "yzhang.markdown-all-in-one",
                 "ms-vscode.cpptools"
             ],
             "settings": {
-                "terminal.integrated.defaultProfile.linux": "bash"
+                "terminal.integrated.defaultProfile.linux": "bash",
+                "python.defaultInterpreterPath": "/usr/bin/python3",
+                "python.testing.pytestEnabled": true,
+                "python.testing.unittestEnabled": false,
+                "python.testing.pytestArgs": [
+                    "tests/unit"
+                ],
+                "editor.formatOnSave": true,
+                "[python]": {
+                    "editor.defaultFormatter": "ms-python.black-formatter"
+                }
             }
         }
     },
