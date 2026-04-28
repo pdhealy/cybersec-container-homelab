@@ -72,7 +72,9 @@ services:
       - net.ipv4.ip_forward=1
 
   pihole:
-    image: pihole/pihole@sha256:300cc8f9e966b00440358aafef21f91b32dfe8887e8bd9a6193ed1c4328655d4
+    build:
+      context: ./services/pi-hole
+    image: homelab-pihole:latest
     container_name: pihole
     networks:
       internal_net:
@@ -83,7 +85,6 @@ services:
       - FTLCONF_webserver_api_password=${PIHOLE_PASSWORD}
       - DNSMASQ_USER=root
       - FTLCONF_dns_listeningMode=ALL
-      - FTLCONF_files_log_dnsmasq=-
     deploy:
       resources:
         limits:
@@ -120,11 +121,7 @@ services:
       - /var/log/lighttpd
       - /var/cache/lighttpd
       - /etc/lighttpd
-    logging:
-      driver: "syslog"
-      options:
-        syslog-address: "udp://10.10.30.254:514"
-        tag: "pihole"
+      - /var/spool/rsyslog
     restart: unless-stopped
     depends_on:
       firewall:
@@ -132,7 +129,7 @@ services:
     entrypoint:
       - sh
       - -c
-      - "ip route del default && ip route add default via 10.10.30.254 && exec start.sh"
+      - "ip route del default && ip route add default via 10.10.30.254 && /usr/sbin/rsyslogd && exec start.sh"
 
   wazuh.manager:
     profiles: ["wazuh"]

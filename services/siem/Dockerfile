@@ -9,7 +9,7 @@ RUN sed -i 's/MAX_ITERATION="10"/MAX_ITERATION="120"/g' /var/ossec/bin/wazuh-con
 # Inject the syslog remote listener only into the FIRST <ossec_config> block.
 # The base Wazuh image ossec.conf has multiple <ossec_config> blocks; using
 # a done-flag prevents double-injection which causes a CRITICAL bind() error.
-RUN awk '!done && /<ossec_config>/{print; print "  <remote>\n    <connection>syslog</connection>\n    <port>514</port>\n    <protocol>udp</protocol>\n    <allowed-ips>10.10.10.254</allowed-ips>\n    <allowed-ips>10.10.20.0/24</allowed-ips>\n    <allowed-ips>10.10.30.254</allowed-ips>\n  </remote>"; done=1; next}1' \
+RUN awk '!done && /<ossec_config>/{print; print "  <remote>\n    <connection>syslog</connection>\n    <port>514</port>\n    <protocol>udp</protocol>\n    <allowed-ips>10.10.10.254</allowed-ips>\n    <allowed-ips>10.10.20.0/24</allowed-ips>\n    <allowed-ips>10.10.30.254</allowed-ips>\n    <allowed-ips>10.10.30.5</allowed-ips>\n  </remote>"; done=1; next}1' \
     /var/ossec/data_tmp/permanent/var/ossec/etc/ossec.conf > /tmp/ossec.conf && \
     mv /tmp/ossec.conf /var/ossec/data_tmp/permanent/var/ossec/etc/ossec.conf
 

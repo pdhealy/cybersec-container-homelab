@@ -61,6 +61,8 @@ def apply_docker_user_rules():
         ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.10.254", "-j", "ACCEPT"],
         ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.20.254", "-j", "ACCEPT"],
         ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.30.254", "-j", "ACCEPT"],
+        ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.30.5", "-d", "10.10.30.10", "-j", "ACCEPT"],
+        ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.30.5", "-d", "10.10.30.15", "-j", "ACCEPT"],
     ]
 
     for rule in rules:

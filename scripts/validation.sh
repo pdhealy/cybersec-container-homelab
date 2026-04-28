@@ -55,15 +55,6 @@ done
 echo ""
 echo "3. Network Isolation & Connectivity Testing"
 
-if [ "${ACTIVE_WAZUH:-false}" = "true" ]; then
-    echo "  ICC Verification (pihole -> wazuh-manager, same subnet — must FAIL)"
-    if docker exec pihole ping -c 1 -W 2 10.10.30.10 > /dev/null 2>&1; then
-        result FAIL "ICC allowed direct ping — intra-network isolation NOT enforced"
-    else
-        result PASS "ICC direct ping dropped — intra-network isolation enforced"
-    fi
-fi
-
 if [ "${ACTIVE_KALI:-false}" = "true" ] && [ "${ACTIVE_METASPLOITABLE2:-false}" = "true" ]; then
     echo "  Firewall Enforcement (attacker -> vulnerable-target, cross-bridge — must PASS)"
     if docker exec attacker-node ping -c 1 -W 4 10.10.20.10 > /dev/null 2>&1; then
