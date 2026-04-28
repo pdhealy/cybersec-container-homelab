@@ -8,22 +8,28 @@ import argparse
 import glob
 import yaml
 import questionary
+import shutil
 
 def check_preflight():
     print("Running pre-flight checks...")
 
     if not os.path.exists(".env"):
-        print("Error: .env file missing. Please run setup_host.sh or create .env")
-        sys.exit(1)
+        print("Warning: .env file missing. Automatically copying from .env.example...")
+        try:
+            shutil.copy(".env.example", ".env")
+        except FileNotFoundError:
+            print("Error: .env.example not found. Cannot create .env.")
+            sys.exit(1)
 
     try:
         with open("/proc/sys/vm/max_map_count", "r") as f:
             max_map_count = int(f.read().strip())
             if max_map_count < 262144:
-                print(f"Error: vm.max_map_count is too low ({max_map_count}). Must be at least 262144.")
-                sys.exit(1)
+                print(f"Warning: vm.max_map_count is too low ({max_map_count}). Automating host setup...")
+                subprocess.run(["sudo", "bash", "scripts/setup_host.sh"], check=True)
     except FileNotFoundError:
-        print("Warning: Could not read /proc/sys/vm/max_map_count.")
+        print("Warning: Could not read /proc/sys/vm/max_map_count. Automating host setup...")
+        subprocess.run(["sudo", "bash", "scripts/setup_host.sh"], check=True)
 
     try:
         with open("/proc/swaps", "r") as f:
@@ -186,7 +192,15 @@ def main():
         if os.path.exists(".active_lab.env"):
             os.remove(".active_lab.env")
     elif action == "build":
-        run_compose("build")
+        profiles = []
+        if args.preset:
+            with open(args.preset, 'r') as f:
+                preset = yaml.safe_load(f)
+                profiles = preset.get("profiles", [])
+        elif args.profiles:
+            profiles = args.profiles.split(",")
+        
+        run_compose("build", profiles)
     elif action == "status":
         subprocess.run(["docker", "compose", "ps"])
 

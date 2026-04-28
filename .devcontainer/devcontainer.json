@@ -19,7 +19,6 @@
         "PIP_DISABLE_PIP_VERSION_CHECK": "1"
     },
     "mounts": [
-        "type=volume,source=cyberhomelab-pip-cache,target=/home/hacker/.cache/pip",
         "type=volume,source=cyberhomelab-bash-history,target=/commandhistory"
     ],
     "postStartCommand": "git config --global --add safe.directory /workspace",

@@ -77,8 +77,10 @@ services:
     networks:
       internal_net:
         ipv4_address: 10.10.30.5
+    ports:
+      - "8080:80"
     environment:
-      - WEBPASSWORD=${PIHOLE_PASSWORD}
+      - FTLCONF_webserver_api_password=${PIHOLE_PASSWORD}
       - DNSMASQ_USER=root
       - FTLCONF_dns_listeningMode=ALL
       - FTLCONF_files_log_dnsmasq=-
@@ -135,12 +137,14 @@ services:
   wazuh.manager:
     profiles: ["wazuh"]
     build:
-      context: ./siem
+      context: ./services/siem
     image: homelab-wazuh:latest
     container_name: wazuh-manager
     networks:
       internal_net:
         ipv4_address: 10.10.30.10
+    ports:
+      - "55000:55000"
     environment:
       - WAZUH_ADMIN_PASSWORD=${WAZUH_ADMIN_PASSWORD}
       - S6_READ_ONLY_ROOT=1
@@ -257,7 +261,7 @@ services:
       - /etc/samba
       - /root/.vnc
     volumes:
-      - ./vulnerable-target/syslog.conf:/etc/syslog.conf:ro
+      - ./services/vulnerable-target/syslog.conf:/etc/syslog.conf:ro
     restart: unless-stopped
     depends_on:
       firewall:

@@ -16,7 +16,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN python3 -m pip install --no-cache-dir --break-system-packages \
     PyYAML \
-    questionary
+    questionary \
+    pytest
 
 RUN useradd -m -s /bin/bash hacker && \
     echo "hacker:attacker" | chpasswd && \

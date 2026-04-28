@@ -19,21 +19,24 @@ from cyberlab import cli as lab_manager
 class TestLabManagerPreflight(unittest.TestCase):
     """Test suite for the pre-flight check logic."""
 
+    @patch('shutil.copy')
     @patch('sys.exit')
     @patch('builtins.print')
     @patch('os.path.exists', return_value=False)
-    def test_missing_env_file(self, mock_exists, mock_print, mock_exit):
-        """Test that missing .env file triggers sys.exit(1)."""
+    def test_missing_env_file(self, mock_exists, mock_print, mock_exit, mock_copy):
+        """Test that missing .env file triggers a copy of .env.example."""
         lab_manager.check_preflight()
         mock_exists.assert_called_once_with(".env")
-        mock_print.assert_any_call("Error: .env file missing. Please run setup_host.sh or create .env")
-        mock_exit.assert_called_once_with(1)
+        mock_print.assert_any_call("Warning: .env file missing. Automatically copying from .env.example...")
+        mock_copy.assert_called_once_with(".env.example", ".env")
+        mock_exit.assert_not_called()
 
+    @patch('subprocess.run')
     @patch('sys.exit')
     @patch('builtins.print')
     @patch('os.path.exists', return_value=True)
-    def test_low_max_map_count(self, mock_exists, mock_print, mock_exit):
-        """Test that vm.max_map_count < 262144 triggers sys.exit(1)."""
+    def test_low_max_map_count(self, mock_exists, mock_print, mock_exit, mock_run):
+        """Test that vm.max_map_count < 262144 triggers automated host setup."""
         
         def mock_open_side_effect(file, mode='r', *args, **kwargs):
             if file == "/proc/sys/vm/max_map_count":
@@ -45,8 +48,9 @@ class TestLabManagerPreflight(unittest.TestCase):
         with patch('builtins.open', side_effect=mock_open_side_effect):
             lab_manager.check_preflight()
 
-        mock_print.assert_any_call("Error: vm.max_map_count is too low (65530). Must be at least 262144.")
-        mock_exit.assert_called_once_with(1)
+        mock_print.assert_any_call("Warning: vm.max_map_count is too low (65530). Automating host setup...")
+        mock_run.assert_called_once_with(["sudo", "bash", "scripts/setup_host.sh"], check=True)
+        mock_exit.assert_not_called()
 
     @patch('sys.exit')
     @patch('builtins.print')
