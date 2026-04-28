@@ -1,12 +1,10 @@
 #!/bin/bash
-# End-to-End Validation Script — Phase 6
-# Polls service health and validates network isolation before declaring the lab ready.
+# Integration test to validate attack logging from both the firewall and the target, and DNS logs via Pi-hole.
 set -euo pipefail
 
-# Load credentials from .env so we don't hardcode passwords in this script.
-WAZUH_ADMIN_PASSWORD=""
+SPLUNK_PASSWORD=""
 if [ -f ".env" ]; then
-    WAZUH_ADMIN_PASSWORD=$(grep '^WAZUH_ADMIN_PASSWORD=' .env 2>/dev/null | cut -d'=' -f2- | tr -d '"' || true)
+    SPLUNK_PASSWORD=$(grep '^SPLUNK_PASSWORD=' .env 2>/dev/null | cut -d'=' -f2- | tr -d '"' || true)
 fi
 
 if [ -f ".active_lab.env" ]; then
@@ -15,137 +13,159 @@ else
     echo "WARNING: .active_lab.env not found. Assuming all components are active."
 fi
 
-PASS=0
-FAIL=0
-result() { [ "$1" = "PASS" ] && PASS=$((PASS+1)) || FAIL=$((FAIL+1)); echo "  [$1] $2"; }
+echo "=== Running Attack Logging Integration Test ==="
 
-echo "=== Phase 6: End-to-End Validation ==="
-
-# ---------------------------------------------------------------------------
-echo ""
-echo "1. Build & Structural Validation"
-for img in homelab-firewall:latest; do
-    USER_DIR=$(docker inspect "$img" --format '{{.Config.User}}' 2>/dev/null || echo "NOT_FOUND")
-    echo "  $img  USER directive: $USER_DIR"
-done
-if [ "${ACTIVE_KALI:-false}" = "true" ]; then
-    USER_DIR=$(docker inspect "homelab-attacker:latest" --format '{{.Config.User}}' 2>/dev/null || echo "NOT_FOUND")
-    echo "  homelab-attacker:latest  USER directive: $USER_DIR"
+HAS_SIEM=false
+if [ "${ACTIVE_WAZUH:-false}" = "true" ] || [ "${ACTIVE_SPLUNK:-false}" = "true" ]; then
+    HAS_SIEM=true
 fi
 
-# ---------------------------------------------------------------------------
-echo ""
-echo "2. Runtime & Security Context Validation"
-CONTAINERS="firewall pihole"
-[ "${ACTIVE_KALI:-false}" = "true" ] && CONTAINERS="$CONTAINERS attacker-node"
-[ "${ACTIVE_ATOMICRED:-false}" = "true" ] && CONTAINERS="$CONTAINERS atomic-red"
-[ "${ACTIVE_WAZUH:-false}" = "true" ] && CONTAINERS="$CONTAINERS wazuh-manager"
-[ "${ACTIVE_SPLUNK:-false}" = "true" ] && CONTAINERS="$CONTAINERS splunk"
-[ "${ACTIVE_METASPLOITABLE2:-false}" = "true" ] && CONTAINERS="$CONTAINERS vulnerable-target"
-[ "${ACTIVE_UBUNTU:-false}" = "true" ] && CONTAINERS="$CONTAINERS ubuntu-target"
-
-for c in $CONTAINERS; do
-    echo "  Container: $c"
-    docker inspect "$c" --format '    ReadonlyRootfs: {{.HostConfig.ReadonlyRootfs}}' 2>/dev/null || echo "    (not running)"
-    docker inspect "$c" --format '    SecurityOpt:    {{.HostConfig.SecurityOpt}}'    2>/dev/null || true
-    docker inspect "$c" --format '    CapDrop:        {{.HostConfig.CapDrop}}'        2>/dev/null || true
-done
-
-# ---------------------------------------------------------------------------
-echo ""
-echo "3. Network Isolation & Connectivity Testing"
-
-if [ "${ACTIVE_WAZUH:-false}" = "true" ]; then
-    echo "  ICC Verification (pihole -> wazuh-manager, same subnet — must FAIL)"
-    if docker exec pihole ping -c 1 -W 2 10.10.30.10 > /dev/null 2>&1; then
-        result FAIL "ICC allowed direct ping — intra-network isolation NOT enforced"
-    else
-        result PASS "ICC direct ping dropped — intra-network isolation enforced"
-    fi
-fi
-
-if [ "${ACTIVE_KALI:-false}" = "true" ] && [ "${ACTIVE_METASPLOITABLE2:-false}" = "true" ]; then
-    echo "  Firewall Enforcement (attacker -> vulnerable-target, cross-bridge — must PASS)"
-    if docker exec attacker-node ping -c 1 -W 4 10.10.20.10 > /dev/null 2>&1; then
-        result PASS "Firewall routed attacker -> DMZ successfully"
-    else
-        result FAIL "Firewall failed to route attacker -> DMZ"
-    fi
-
-    echo "  Drop Policy (vulnerable-target -> attacker, no reverse route — must FAIL)"
-    if docker exec vulnerable-target ping -c 1 -W 2 10.10.10.10 > /dev/null 2>&1; then
-        result FAIL "Drop policy NOT active — DMZ can initiate connections to attacker"
-    else
-        result PASS "Drop policy active — DMZ cannot initiate connections to attacker"
-    fi
-fi
-
-if [ "${ACTIVE_ATOMICRED:-false}" = "true" ] && [ "${ACTIVE_METASPLOITABLE2:-false}" = "true" ]; then
-    echo "  Firewall Enforcement (atomic-red -> vulnerable-target, cross-bridge — must PASS)"
-    if docker exec atomic-red ping -c 1 -W 4 10.10.20.10 > /dev/null 2>&1; then
-        result PASS "Firewall routed atomic-red -> DMZ successfully"
-    else
-        result FAIL "Firewall failed to route atomic-red -> DMZ"
-    fi
-fi
-
-# ---------------------------------------------------------------------------
-echo ""
-echo "4. Service & API Health Checks"
-
-FIREWALL_HEALTH=$(docker inspect firewall --format '{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
-echo "  Firewall health: $FIREWALL_HEALTH"
-[ "$FIREWALL_HEALTH" = "healthy" ] && result PASS "Firewall container healthy" || result FAIL "Firewall container not healthy (status: $FIREWALL_HEALTH)"
-
-if [ "${ACTIVE_WAZUH:-false}" = "true" ]; then
-    if [ -z "$WAZUH_ADMIN_PASSWORD" ]; then
-        echo "WARNING: WAZUH_ADMIN_PASSWORD not found in .env; SIEM API check will likely fail."
-    fi
-    echo "  Waiting for Wazuh SIEM API (polling every 5s, up to 120s)..."
-    SIEM_READY=false
-    for attempt in $(seq 1 24); do
-        if docker exec wazuh-manager curl -s -k \
-            -u "admin:${WAZUH_ADMIN_PASSWORD}" \
-            https://127.0.0.1:55000/ > /dev/null 2>&1; then
-            result PASS "SIEM API reachable (attempt ${attempt}/24)"
-            SIEM_READY=true
-            break
-        fi
-        echo "    Not ready yet (attempt ${attempt}/24) — retrying in 5s..."
-        sleep 5
-    done
-    if [ "$SIEM_READY" = "false" ]; then
-        result FAIL "SIEM API did not respond within 120 seconds"
-    fi
-fi
-
-if [ "${ACTIVE_SPLUNK:-false}" = "true" ]; then
-    echo "  Waiting for Splunk to finish provisioning (polling for UDP 1514, up to 600s)..."
-    SPLUNK_READY=false
-    for attempt in $(seq 1 120); do
-        if docker exec splunk grep "05EA" /proc/net/udp > /dev/null 2>&1; then
-            result PASS "Splunk is ready and listening on UDP 1514 (attempt ${attempt}/120)"
-            SPLUNK_READY=true
-            break
-        fi
-        echo "    Splunk provisioning... (attempt ${attempt}/120) — retrying in 5s..."
-        sleep 5
-    done
-    if [ "$SPLUNK_READY" = "false" ]; then
-        result FAIL "Splunk did not finish provisioning within 600 seconds"
-    fi
-fi
-
-# ---------------------------------------------------------------------------
-echo ""
-echo "=== Validation Summary: ${PASS} PASS / ${FAIL} FAIL ==="
-if [ "$FAIL" -eq 0 ]; then
-    echo "ALL CHECKS PASSED — Lab is ready."
+if [ "$HAS_SIEM" != "true" ]; then
+    echo "No SIEM is active. Skipping attack logging integration tests."
     exit 0
-else
-    echo "SOME CHECKS FAILED — Review output above."
-    exit 1
 fi
+
+HAS_TARGET=false
+if [ "${ACTIVE_METASPLOITABLE2:-false}" = "true" ] || [ "${ACTIVE_UBUNTU:-false}" = "true" ]; then
+    HAS_TARGET=true
+fi
+
+if [ "$HAS_TARGET" != "true" ]; then
+    echo "No target is active. Skipping attack logging integration tests."
+    exit 0
+fi
+
+TARGET_IP=""
+TARGET_NAME=""
+if [ "${ACTIVE_METASPLOITABLE2:-false}" = "true" ]; then
+    TARGET_IP="10.10.20.10"
+    TARGET_NAME="vulnerable-target"
+elif [ "${ACTIVE_UBUNTU:-false}" = "true" ]; then
+    TARGET_IP="10.10.20.15" # We assume it's roughly here or the name resolves
+    TARGET_NAME="ubuntu-target"
+fi
+
+# 1. Execute the attacks
+if [ "${ACTIVE_ATOMICRED:-false}" = "true" ] && [ -n "$TARGET_IP" ]; then
+    echo "Initiating Nmap port scan from atomic-red (10.10.10.20) to ${TARGET_NAME}..."
+    docker exec atomic-red pwsh -c "Invoke-AtomicTest T1046 -TestNumbers 12 -InputArgs @{'host'='${TARGET_IP}'; 'port_range'='1-100'}" >/dev/null || true
+fi
+
+if [ "${ACTIVE_KALI:-false}" = "true" ] && [ -n "$TARGET_IP" ]; then
+    echo "Initiating malformed SSH connection from attacker-node (10.10.10.10) to ${TARGET_NAME}..."
+    docker exec attacker-node bash -c "</dev/tcp/${TARGET_IP}/22; sleep 1; echo 'kali_test_probe' > /dev/tcp/${TARGET_IP}/22" 2>/dev/null || true
+fi
+
+# 2. Execute DNS Test via Pi-hole
+TEST_DOMAIN="pihole-test-domain-${RANDOM}.com"
+echo "Initiating DNS query for $TEST_DOMAIN from ${TARGET_NAME} via Pi-hole (10.10.30.5)..."
+docker exec ${TARGET_NAME} bash -c "nslookup ${TEST_DOMAIN} 10.10.30.5 || ping -c 1 ${TEST_DOMAIN} || getent hosts ${TEST_DOMAIN}" >/dev/null 2>&1 || true
+
+echo "Waiting 45 seconds for logs to be ingested by SIEM(s)..."
+sleep 45
+
+ALL_PASSED=true
+
+function check_wazuh_log {
+    local file=$1
+    local pattern=$2
+    for i in $(seq 1 5); do
+        if docker exec wazuh-manager grep -E "$pattern" "$file" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 2
+    done
+    return 1
+}
+
+function check_splunk_log {
+    local query=$1
+    echo "  [DEBUG] Running Splunk query: search index=* earliest=-10m $query"
+    for i in $(seq 1 20); do
+        if docker exec --user splunk splunk /opt/splunk/bin/splunk search "index=* earliest=-10m $query" -auth "admin:${SPLUNK_PASSWORD}" 2>/dev/null | grep -vE "^WARNING:|^INFO:" | grep . >/dev/null; then
+            return 0
+        fi
+        sleep 3
+    done
+    return 1
+}
+
+if [ "${ACTIVE_ATOMICRED:-false}" = "true" ]; then
+    echo "Validating Atomic Red Team Firewall Logs..."
+    if [ "${ACTIVE_WAZUH:-false}" = "true" ]; then
+        if check_wazuh_log "/var/ossec/logs/alerts/alerts.log" "FW_FORWARD_ATTACK.*SRC=10.10.10.20 DST=${TARGET_IP}"; then
+            echo "  [PASS] Wazuh: Firewall logged Atomic Red Team traffic."
+        else
+            echo "  [FAIL] Wazuh: Firewall logs for Atomic Red Team not found."
+            ALL_PASSED=false
+        fi
+    fi
+    if [ "${ACTIVE_SPLUNK:-false}" = "true" ]; then
+        if check_splunk_log "FW_FORWARD_ATTACK SRC=10.10.10.20 DST=${TARGET_IP}"; then
+            echo "  [PASS] Splunk: Firewall logged Atomic Red Team traffic."
+        else
+            echo "  [FAIL] Splunk: Firewall logs for Atomic Red Team not found."
+            ALL_PASSED=false
+        fi
+    fi
+    
+    echo "Validating Atomic Red Team Target Logs..."
+    if [ "${ACTIVE_WAZUH:-false}" = "true" ]; then
+        if check_wazuh_log "/var/ossec/logs/archives/archives.log" "sshd.*Did not receive identification string from 10.10.10.20"; then
+            echo "  [PASS] Wazuh: Target logged Atomic Red Team port scan."
+        else
+            echo "  [FAIL] Wazuh: Target application logs for Atomic Red Team not found."
+            ALL_PASSED=false
+        fi
+    fi
+    if [ "${ACTIVE_SPLUNK:-false}" = "true" ]; then
+        if check_splunk_log "\"Did not receive identification string from 10.10.10.20\""; then
+            echo "  [PASS] Splunk: Target logged Atomic Red Team port scan."
+        else
+            echo "  [FAIL] Splunk: Target application logs for Atomic Red Team not found."
+            ALL_PASSED=false
+        fi
+    fi
+fi
+
+if [ "${ACTIVE_KALI:-false}" = "true" ]; then
+    echo "Validating Kali Firewall Logs..."
+    if [ "${ACTIVE_WAZUH:-false}" = "true" ]; then
+        if check_wazuh_log "/var/ossec/logs/alerts/alerts.log" "FW_FORWARD_ATTACK.*SRC=10.10.10.10 DST=${TARGET_IP}"; then
+            echo "  [PASS] Wazuh: Firewall logged Kali traffic."
+        else
+            echo "  [FAIL] Wazuh: Firewall logs for Kali not found."
+            ALL_PASSED=false
+        fi
+    fi
+    if [ "${ACTIVE_SPLUNK:-false}" = "true" ]; then
+        if check_splunk_log "FW_FORWARD_ATTACK SRC=10.10.10.10 DST=${TARGET_IP}"; then
+            echo "  [PASS] Splunk: Firewall logged Kali traffic."
+        else
+            echo "  [FAIL] Splunk: Firewall logs for Kali not found."
+            ALL_PASSED=false
+        fi
+    fi
+    
+    echo "Validating Kali Target Logs..."
+    if [ "${ACTIVE_WAZUH:-false}" = "true" ]; then
+        if check_wazuh_log "/var/ossec/logs/archives/archives.log" "sshd.*Bad protocol version identification 'kali_test_probe' from 10.10.10.10"; then
+            echo "  [PASS] Wazuh: Target logged Kali malformed SSH connection."
+        else
+            echo "  [FAIL] Wazuh: Target application logs for Kali not found."
+            ALL_PASSED=false
+        fi
+    fi
+    if [ "${ACTIVE_SPLUNK:-false}" = "true" ]; then
+        if check_splunk_log "\"Bad protocol version identification 'kali_test_probe' from 10.10.10.10\""; then
+            echo "  [PASS] Splunk: Target logged Kali malformed SSH connection."
+        else
+            echo "  [FAIL] Splunk: Target application logs for Kali not found."
+            ALL_PASSED=false
+        fi
+    fi
+fi
+
 echo "Validating Pi-hole DNS Logs..."
 if [ "${ACTIVE_WAZUH:-false}" = "true" ]; then
     if check_wazuh_log "/var/ossec/logs/archives/archives.log" "query.*${TEST_DOMAIN}"; then
@@ -165,16 +185,6 @@ if [ "${ACTIVE_SPLUNK:-false}" = "true" ]; then
 fi
 
 echo "=== Test Summary ==="
-if [ "$ALL_PASSED" = "true" ]; then
-    echo "ALL TESTS PASSED."
-    exit 0
-else
-    echo "SOME TESTS FAILED."
-    exit 1
-fi
-it 1
-fi
-"=== Test Summary ==="
 if [ "$ALL_PASSED" = "true" ]; then
     echo "ALL TESTS PASSED."
     exit 0
