@@ -48,3 +48,6 @@ GEMINI.md
 .DS_Store
 .idea/
 .vscode/
+
+# --- Documentation ---
+docs/
