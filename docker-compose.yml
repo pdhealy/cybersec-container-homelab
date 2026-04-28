@@ -6,7 +6,7 @@ networks:
       # Disable intra-network ICC so containers on the same subnet cannot
       # communicate directly; all traffic is forced through the firewall container.
       # Cross-bridge routing still works because the DOCKER-USER iptables chain
-      # is configured by setup_host.sh / lab_manager.py to ACCEPT br-+ to br-+.
+      # is configured by setup_host.sh / cli.py to ACCEPT br-+ to br-+.
       com.docker.network.bridge.enable_icc: "false"
     ipam:
       config:

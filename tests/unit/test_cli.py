@@ -1,5 +1,5 @@
 """
-Unit tests for the lab_manager.py orchestrator script.
+Unit tests for the cli.py orchestrator script.
 
 These tests use the standard 'unittest' framework and 'unittest.mock' to
 simulate host interactions, file system state, and subprocess executions
@@ -13,7 +13,7 @@ from unittest.mock import patch, mock_open, MagicMock
 
 # Add the parent directory to the Python path to import lab_manager
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
-from cyberlab import cli as lab_manager
+from cyberlab import cli
 
 
 class TestLabManagerPreflight(unittest.TestCase):
@@ -25,7 +25,7 @@ class TestLabManagerPreflight(unittest.TestCase):
     @patch('os.path.exists', return_value=False)
     def test_missing_env_file(self, mock_exists, mock_print, mock_exit, mock_copy):
         """Test that missing .env file triggers a copy of .env.example."""
-        lab_manager.check_preflight()
+        cli.check_preflight()
         mock_exists.assert_called_once_with(".env")
         mock_print.assert_any_call("Warning: .env file missing. Automatically copying from .env.example...")
         mock_copy.assert_called_once_with(".env.example", ".env")
@@ -46,7 +46,7 @@ class TestLabManagerPreflight(unittest.TestCase):
             raise FileNotFoundError(f"No such file: {file}")
 
         with patch('builtins.open', side_effect=mock_open_side_effect):
-            lab_manager.check_preflight()
+            cli.check_preflight()
 
         mock_print.assert_any_call("Warning: vm.max_map_count is too low (65530). Automating host setup...")
         mock_run.assert_called_once_with(["sudo", "bash", "scripts/setup_host.sh"], check=True)
@@ -66,7 +66,7 @@ class TestLabManagerPreflight(unittest.TestCase):
             raise FileNotFoundError(f"No such file: {file}")
 
         with patch('builtins.open', side_effect=mock_open_side_effect):
-            lab_manager.check_preflight()
+            cli.check_preflight()
 
         mock_print.assert_any_call("Error: Swap is enabled. Disable it with 'sudo swapoff -a' for optimal performance.")
         mock_exit.assert_called_once_with(1)
@@ -85,7 +85,7 @@ class TestLabManagerPreflight(unittest.TestCase):
             raise FileNotFoundError(f"No such file: {file}")
 
         with patch('builtins.open', side_effect=mock_open_side_effect):
-            lab_manager.check_preflight()
+            cli.check_preflight()
 
         mock_print.assert_any_call("Pre-flight checks passed.")
         mock_exit.assert_not_called()
@@ -101,7 +101,7 @@ class TestLabManagerDockerRules(unittest.TestCase):
         # Simulate that `iptables -C` succeeds (return code 0) for all checks.
         mock_run.return_value = MagicMock(returncode=0)
 
-        lab_manager.apply_docker_user_rules()
+        cli.apply_docker_user_rules()
 
         # The loop should execute, calling `iptables -C` multiple times.
         # But `iptables -t <table/chain>` (the actual addition) should never be called.
@@ -119,14 +119,14 @@ class TestLabManagerCompose(unittest.TestCase):
     @patch('builtins.print')
     def test_run_compose_up(self, mock_print, mock_run):
         """Test the translation of 'up' into a detached compose execution."""
-        lab_manager.run_compose("up")
+        cli.run_compose("up")
         mock_run.assert_called_once_with(["docker", "compose", "up", "-d"], check=True)
 
     @patch('subprocess.run')
     @patch('builtins.print')
     def test_run_compose_with_profile(self, mock_print, mock_run):
         """Test that compose profiles are correctly passed."""
-        lab_manager.run_compose("down", profiles=["core"])
+        cli.run_compose("down", profiles=["core"])
         mock_run.assert_called_once_with(["docker", "compose", "--profile", "*", "down"], check=True)
 
 
@@ -139,7 +139,7 @@ class TestLabManagerMain(unittest.TestCase):
     def test_invalid_action(self, mock_stderr, mock_exit):
         """Test that an invalid action terminates the script."""
         with self.assertRaises(SystemExit) as cm:
-            lab_manager.main()
+            cli.main()
         self.assertEqual(cm.exception.code, 2)
         mock_exit.assert_called_once_with(2)
 
@@ -148,7 +148,7 @@ class TestLabManagerMain(unittest.TestCase):
     @patch('subprocess.run')
     def test_status_action(self, mock_run):
         """Test the 'status' action."""
-        lab_manager.main()
+        cli.main()
         mock_run.assert_called_once_with(["docker", "compose", "ps"])
 
     @patch('sys.argv', ['cyberlab.py', 'up'])
@@ -162,7 +162,7 @@ class TestLabManagerMain(unittest.TestCase):
     @patch('cyberlab.cli.write_active_lab_env')
     def test_up_action(self, mock_write, mock_interactive, mock_print, mock_run, mock_sleep, mock_apply, mock_compose, mock_preflight):
         """Test the comprehensive sequence of the 'up' action."""
-        lab_manager.main()
+        cli.main()
         
         mock_preflight.assert_called_once()
         mock_compose.assert_called_once_with("up", ["core"])
