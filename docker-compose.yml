@@ -342,7 +342,7 @@ services:
       - no-new-privileges:true
     volumes:
       - ./logs/pcaps:/pcaps
-    command: tcpdump -i any -w /pcaps/homelab-capture.pcap
+    command: tcpdump -i any -U -w /pcaps/homelab-capture.pcap
     depends_on:
       firewall:
         condition: service_healthy

@@ -36,7 +36,7 @@ fi
 # ---------------------------------------------------------------------------
 echo ""
 echo "2. Runtime & Security Context Validation"
-CONTAINERS="firewall pihole"
+CONTAINERS="firewall pihole wiretap"
 [ "${ACTIVE_KALI:-false}" = "true" ] && CONTAINERS="$CONTAINERS attacker-node"
 [ "${ACTIVE_ATOMICRED:-false}" = "true" ] && CONTAINERS="$CONTAINERS atomic-red"
 [ "${ACTIVE_WAZUH:-false}" = "true" ] && CONTAINERS="$CONTAINERS wazuh-manager"

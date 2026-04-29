@@ -184,6 +184,19 @@ if [ "${ACTIVE_SPLUNK:-false}" = "true" ]; then
     fi
 fi
 
+echo "Validating Wiretap Packet Capture..."
+if [ -f "logs/pcaps/homelab-capture.pcap" ]; then
+    if docker exec wiretap tcpdump -r /pcaps/homelab-capture.pcap -n 2>/dev/null | grep "${TEST_DOMAIN}" >/dev/null; then
+        echo "  [PASS] Wiretap: Captured DNS traffic for ${TEST_DOMAIN}."
+    else
+        echo "  [FAIL] Wiretap: Did not capture DNS traffic for ${TEST_DOMAIN}."
+        ALL_PASSED=false
+    fi
+else
+    echo "  [FAIL] Wiretap: PCAP file not found at logs/pcaps/homelab-capture.pcap."
+    ALL_PASSED=false
+fi
+
 echo "=== Test Summary ==="
 if [ "$ALL_PASSED" = "true" ]; then
     echo "ALL TESTS PASSED."
