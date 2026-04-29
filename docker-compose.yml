@@ -329,5 +329,23 @@ services:
     command: >
       sh -c "ip route del default && ip route add default via 10.10.10.254 && tail -f /dev/null"
 
+  wiretap:
+    image: nicolaka/netshoot:latest
+    container_name: wiretap
+    network_mode: "service:firewall"
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./logs/pcaps:/pcaps
+    command: tcpdump -i any -w /pcaps/homelab-capture.pcap
+    depends_on:
+      firewall:
+        condition: service_healthy
+
 volumes:
   wazuh_data:
