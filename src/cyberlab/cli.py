@@ -13,12 +13,12 @@ import shutil
 def check_preflight():
     print("Running pre-flight checks...")
 
-    if not os.path.exists(".env"):
-        print("Warning: .env file missing. Automatically copying from .env.example...")
+    if not os.path.exists("configs/.env"):
+        print("Warning: configs/.env file missing. Automatically copying from configs/.env.example...")
         try:
-            shutil.copy(".env.example", ".env")
+            shutil.copy("configs/.env.example", "configs/.env")
         except FileNotFoundError:
-            print("Error: .env.example not found. Cannot create .env.")
+            print("Error: configs/.env.example not found. Cannot create configs/.env.")
             sys.exit(1)
 
     try:
@@ -86,10 +86,10 @@ def get_presets():
     return presets
 
 def write_active_lab_env(profiles):
-    with open(".active_lab.env", "w") as f:
+    with open("configs/.active_lab.env", "w") as f:
         for p in profiles:
             f.write(f"ACTIVE_{p.upper()}=true\n")
-    print("Generated .active_lab.env")
+    print("Generated configs/.active_lab.env")
 
 def interactive_mode():
     mode = questionary.select(
@@ -133,7 +133,7 @@ def interactive_mode():
     return profiles
 
 def run_compose(action, profiles=None):
-    cmd = ["docker", "compose"]
+    cmd = ["docker", "compose", "--env-file", "configs/.env"]
     if action == "down":
         cmd.extend(["--profile", "*"])
     elif profiles:
@@ -191,8 +191,8 @@ def main():
         subprocess.run(["bash", "-x", "./tests/integration/test_attack_logging.sh"], check=True)
     elif action == "down":
         run_compose("down")
-        if os.path.exists(".active_lab.env"):
-            os.remove(".active_lab.env")
+        if os.path.exists("configs/.active_lab.env"):
+            os.remove("configs/.active_lab.env")
     elif action == "build":
         profiles = []
         if args.preset:
@@ -204,7 +204,7 @@ def main():
         
         run_compose("build", profiles)
     elif action == "status":
-        subprocess.run(["docker", "compose", "ps"])
+        subprocess.run(["docker", "compose", "--env-file", "configs/.env", "ps"])
 
 if __name__ == "__main__":
     main()

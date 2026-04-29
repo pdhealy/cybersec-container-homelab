@@ -24,11 +24,11 @@ class TestLabManagerPreflight(unittest.TestCase):
     @patch('builtins.print')
     @patch('os.path.exists', return_value=False)
     def test_missing_env_file(self, mock_exists, mock_print, mock_exit, mock_copy):
-        """Test that missing .env file triggers a copy of .env.example."""
+        """Test that missing configs/.env file triggers a copy of configs/.env.example."""
         cli.check_preflight()
-        mock_exists.assert_called_once_with(".env")
-        mock_print.assert_any_call("Warning: .env file missing. Automatically copying from .env.example...")
-        mock_copy.assert_called_once_with(".env.example", ".env")
+        mock_exists.assert_called_once_with("configs/.env")
+        mock_print.assert_any_call("Warning: configs/.env file missing. Automatically copying from configs/.env.example...")
+        mock_copy.assert_called_once_with("configs/.env.example", "configs/.env")
         mock_exit.assert_not_called()
 
     @patch('subprocess.run')
@@ -120,14 +120,14 @@ class TestLabManagerCompose(unittest.TestCase):
     def test_run_compose_up(self, mock_print, mock_run):
         """Test the translation of 'up' into a detached compose execution."""
         cli.run_compose("up")
-        mock_run.assert_called_once_with(["docker", "compose", "up", "-d"], check=True)
+        mock_run.assert_called_once_with(["docker", "compose", "--env-file", "configs/.env", "up", "-d"], check=True)
 
     @patch('subprocess.run')
     @patch('builtins.print')
     def test_run_compose_with_profile(self, mock_print, mock_run):
         """Test that compose profiles are correctly passed."""
         cli.run_compose("down", profiles=["core"])
-        mock_run.assert_called_once_with(["docker", "compose", "--profile", "*", "down"], check=True)
+        mock_run.assert_called_once_with(["docker", "compose", "--env-file", "configs/.env", "--profile", "*", "down"], check=True)
 
 
 class TestLabManagerMain(unittest.TestCase):
@@ -149,7 +149,7 @@ class TestLabManagerMain(unittest.TestCase):
     def test_status_action(self, mock_run):
         """Test the 'status' action."""
         cli.main()
-        mock_run.assert_called_once_with(["docker", "compose", "ps"])
+        mock_run.assert_called_once_with(["docker", "compose", "--env-file", "configs/.env", "ps"])
 
     @patch('sys.argv', ['cyberlab.py', 'up'])
     @patch('cyberlab.cli.check_preflight')

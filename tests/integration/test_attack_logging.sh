@@ -3,14 +3,14 @@
 set -euo pipefail
 
 SPLUNK_PASSWORD=""
-if [ -f ".env" ]; then
-    SPLUNK_PASSWORD=$(grep '^SPLUNK_PASSWORD=' .env 2>/dev/null | cut -d'=' -f2- | tr -d '"' || true)
+if [ -f "configs/.env" ]; then
+    SPLUNK_PASSWORD=$(grep '^SPLUNK_PASSWORD=' configs/.env 2>/dev/null | cut -d'=' -f2- | tr -d '"' || true)
 fi
 
-if [ -f ".active_lab.env" ]; then
-    source .active_lab.env
+if [ -f "configs/.active_lab.env" ]; then
+    source configs/.active_lab.env
 else
-    echo "WARNING: .active_lab.env not found. Assuming all components are active."
+    echo "WARNING: configs/.active_lab.env not found. Assuming all components are active."
 fi
 
 echo "=== Running Attack Logging Integration Test ==="

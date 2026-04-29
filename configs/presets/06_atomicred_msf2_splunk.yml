@@ -1,5 +1,5 @@
 name: "AtomicRed -> Metasploitable2 -> Splunk"
-description: "Automated adversary emulation against Metasploitable2 with Splunk Wazuh"
+description: "Automated adversary emulation against Metasploitable2 with Splunk SIEM"
 profiles:
   - atomicred
   - metasploitable2

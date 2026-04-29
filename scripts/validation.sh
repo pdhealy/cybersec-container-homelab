@@ -3,16 +3,16 @@
 # Polls service health and validates network isolation before declaring the lab ready.
 set -euo pipefail
 
-# Load credentials from .env so we don't hardcode passwords in this script.
+# Load credentials from configs/.env so we don't hardcode passwords in this script.
 WAZUH_ADMIN_PASSWORD=""
-if [ -f ".env" ]; then
-    WAZUH_ADMIN_PASSWORD=$(grep '^WAZUH_ADMIN_PASSWORD=' .env 2>/dev/null | cut -d'=' -f2- | tr -d '"' || true)
+if [ -f "configs/.env" ]; then
+    WAZUH_ADMIN_PASSWORD=$(grep '^WAZUH_ADMIN_PASSWORD=' configs/.env 2>/dev/null | cut -d'=' -f2- | tr -d '"' || true)
 fi
 
-if [ -f ".active_lab.env" ]; then
-    source .active_lab.env
+if [ -f "configs/.active_lab.env" ]; then
+    source configs/.active_lab.env
 else
-    echo "WARNING: .active_lab.env not found. Assuming all components are active."
+    echo "WARNING: configs/.active_lab.env not found. Assuming all components are active."
 fi
 
 PASS=0

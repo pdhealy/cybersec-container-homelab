@@ -1,5 +1,5 @@
 name: "Kali -> Metasploitable2 -> Splunk"
-description: "Standard penetration testing setup with Splunk Wazuh"
+description: "Standard penetration testing setup with Splunk SIEM"
 profiles:
   - kali
   - metasploitable2

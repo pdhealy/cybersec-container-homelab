@@ -1,5 +1,5 @@
 name: "AtomicRed -> Metasploitable2 -> Wazuh"
-description: "Automated adversary emulation against Metasploitable2 with Wazuh Wazuh"
+description: "Automated adversary emulation against Metasploitable2 with Wazuh SIEM"
 profiles:
   - atomicred
   - metasploitable2

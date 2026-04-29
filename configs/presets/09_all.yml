@@ -1,5 +1,5 @@
 name: "All Components"
-description: "Deploys all attacker, target, and Wazuh components"
+description: "Deploys all attacker, target, and SIEM components"
 profiles:
   - kali
   - atomicred
