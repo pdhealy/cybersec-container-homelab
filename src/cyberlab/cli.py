@@ -120,15 +120,15 @@ def interactive_mode():
             choices=["metasploitable2", "ubuntu"]
         ).ask()
         
-        siems = questionary.checkbox(
-            "Select SIEM(s):",
+        wazuhs = questionary.checkbox(
+            "Select Wazuh(s):",
             choices=["wazuh", "splunk"]
         ).ask()
 
-        if attackers is None or targets is None or siems is None:
+        if attackers is None or targets is None or wazuhs is None:
             sys.exit(0)
 
-        profiles = attackers + targets + siems
+        profiles = attackers + targets + wazuhs
 
     return profiles
 

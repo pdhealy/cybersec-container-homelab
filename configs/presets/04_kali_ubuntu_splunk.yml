@@ -1,5 +1,5 @@
 name: "Kali -> Ubuntu -> Splunk"
-description: "Penetration testing setup against Ubuntu with Splunk SIEM"
+description: "Penetration testing setup against Ubuntu with Splunk Wazuh"
 profiles:
   - kali
   - ubuntu

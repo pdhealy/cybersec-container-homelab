@@ -15,13 +15,13 @@ fi
 
 echo "=== Running Attack Logging Integration Test ==="
 
-HAS_SIEM=false
+HAS_Wazuh=false
 if [ "${ACTIVE_WAZUH:-false}" = "true" ] || [ "${ACTIVE_SPLUNK:-false}" = "true" ]; then
-    HAS_SIEM=true
+    HAS_Wazuh=true
 fi
 
-if [ "$HAS_SIEM" != "true" ]; then
-    echo "No SIEM is active. Skipping attack logging integration tests."
+if [ "$HAS_Wazuh" != "true" ]; then
+    echo "No Wazuh is active. Skipping attack logging integration tests."
     exit 0
 fi
 
@@ -39,7 +39,7 @@ TARGET_IP=""
 TARGET_NAME=""
 if [ "${ACTIVE_METASPLOITABLE2:-false}" = "true" ]; then
     TARGET_IP="10.10.20.10"
-    TARGET_NAME="vulnerable-target"
+    TARGET_NAME="metasploitable2"
 elif [ "${ACTIVE_UBUNTU:-false}" = "true" ]; then
     TARGET_IP="10.10.20.15" # We assume it's roughly here or the name resolves
     TARGET_NAME="ubuntu-target"
@@ -52,8 +52,8 @@ if [ "${ACTIVE_ATOMICRED:-false}" = "true" ] && [ -n "$TARGET_IP" ]; then
 fi
 
 if [ "${ACTIVE_KALI:-false}" = "true" ] && [ -n "$TARGET_IP" ]; then
-    echo "Initiating malformed SSH connection from attacker-node (10.10.10.10) to ${TARGET_NAME}..."
-    docker exec attacker-node bash -c "</dev/tcp/${TARGET_IP}/22; sleep 1; echo 'kali_test_probe' > /dev/tcp/${TARGET_IP}/22" 2>/dev/null || true
+    echo "Initiating malformed SSH connection from kali (10.10.10.10) to ${TARGET_NAME}..."
+    docker exec kali bash -c "</dev/tcp/${TARGET_IP}/22; sleep 1; echo 'kali_test_probe' > /dev/tcp/${TARGET_IP}/22" 2>/dev/null || true
 fi
 
 # 2. Execute DNS Test via Pi-hole
@@ -61,7 +61,7 @@ TEST_DOMAIN="pihole-test-domain-${RANDOM}.com"
 echo "Initiating DNS query for $TEST_DOMAIN from ${TARGET_NAME} via Pi-hole (10.10.30.5)..."
 docker exec ${TARGET_NAME} bash -c "nslookup ${TEST_DOMAIN} 10.10.30.5 || ping -c 1 ${TEST_DOMAIN} || getent hosts ${TEST_DOMAIN}" >/dev/null 2>&1 || true
 
-echo "Waiting 45 seconds for logs to be ingested by SIEM(s)..."
+echo "Waiting 45 seconds for logs to be ingested by Wazuh(s)..."
 sleep 45
 
 ALL_PASSED=true

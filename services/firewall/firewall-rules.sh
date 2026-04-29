@@ -15,23 +15,23 @@ iptables -A FORWARD -s 10.10.10.0/24 -d 10.10.20.0/24 -j NFLOG --nflog-prefix "F
 # Allow Attacker to DMZ
 iptables -A FORWARD -s 10.10.10.0/24 -d 10.10.20.0/24 -j ACCEPT
 
-# Allow Attacker to SIEM
+# Allow Attacker to Wazuh
 iptables -A FORWARD -s 10.10.10.0/24 -d 10.10.30.0/24 -j ACCEPT
 
 # Allow DMZ to Pi-hole (DNS)
 iptables -A FORWARD -s 10.10.20.0/24 -d 10.10.30.5 -p udp --dport 53 -j ACCEPT
 iptables -A FORWARD -s 10.10.20.0/24 -d 10.10.30.5 -p tcp --dport 53 -j ACCEPT
 
-# Allow Internal to SIEM (Syslog)
+# Allow Internal to Wazuh (Syslog)
 iptables -A FORWARD -s 10.10.30.0/24 -d 10.10.30.0/24 -j ACCEPT
 
-# Allow DMZ to send syslog to SIEM
+# Allow DMZ to send syslog to Wazuh
 iptables -A FORWARD -s 10.10.20.0/24 -d 10.10.30.10 -p udp --dport 514 -j ACCEPT
 
 # Ensure required directories for rsyslog and ulogd exist on tmpfs
 mkdir -p /var/log /var/spool/rsyslog /var/run /run
 
-# Start rsyslogd to handle local syslog and forward to SIEM
+# Start rsyslogd to handle local syslog and forward to Wazuh
 # -n: run in foreground (will handle forwarding based on /etc/rsyslog.conf)
 rsyslogd -n &
 RSYSLOG_PID=$!

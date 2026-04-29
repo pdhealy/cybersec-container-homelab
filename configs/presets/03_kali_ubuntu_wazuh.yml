@@ -1,5 +1,5 @@
 name: "Kali -> Ubuntu -> Wazuh"
-description: "Penetration testing setup against Ubuntu with Wazuh SIEM"
+description: "Penetration testing setup against Ubuntu with Wazuh Wazuh"
 profiles:
   - kali
   - ubuntu

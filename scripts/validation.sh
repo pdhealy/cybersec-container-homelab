@@ -29,19 +29,19 @@ for img in homelab-firewall:latest; do
     echo "  $img  USER directive: $USER_DIR"
 done
 if [ "${ACTIVE_KALI:-false}" = "true" ]; then
-    USER_DIR=$(docker inspect "homelab-attacker:latest" --format '{{.Config.User}}' 2>/dev/null || echo "NOT_FOUND")
-    echo "  homelab-attacker:latest  USER directive: $USER_DIR"
+    USER_DIR=$(docker inspect "homelab-kali:latest" --format '{{.Config.User}}' 2>/dev/null || echo "NOT_FOUND")
+    echo "  homelab-kali:latest  USER directive: $USER_DIR"
 fi
 
 # ---------------------------------------------------------------------------
 echo ""
 echo "2. Runtime & Security Context Validation"
 CONTAINERS="firewall pihole wiretap"
-[ "${ACTIVE_KALI:-false}" = "true" ] && CONTAINERS="$CONTAINERS attacker-node"
+[ "${ACTIVE_KALI:-false}" = "true" ] && CONTAINERS="$CONTAINERS kali"
 [ "${ACTIVE_ATOMICRED:-false}" = "true" ] && CONTAINERS="$CONTAINERS atomic-red"
 [ "${ACTIVE_WAZUH:-false}" = "true" ] && CONTAINERS="$CONTAINERS wazuh-manager"
 [ "${ACTIVE_SPLUNK:-false}" = "true" ] && CONTAINERS="$CONTAINERS splunk"
-[ "${ACTIVE_METASPLOITABLE2:-false}" = "true" ] && CONTAINERS="$CONTAINERS vulnerable-target"
+[ "${ACTIVE_METASPLOITABLE2:-false}" = "true" ] && CONTAINERS="$CONTAINERS metasploitable2"
 [ "${ACTIVE_UBUNTU:-false}" = "true" ] && CONTAINERS="$CONTAINERS ubuntu-target"
 
 for c in $CONTAINERS; do
@@ -56,23 +56,23 @@ echo ""
 echo "3. Network Isolation & Connectivity Testing"
 
 if [ "${ACTIVE_KALI:-false}" = "true" ] && [ "${ACTIVE_METASPLOITABLE2:-false}" = "true" ]; then
-    echo "  Firewall Enforcement (attacker -> vulnerable-target, cross-bridge — must PASS)"
-    if docker exec attacker-node ping -c 1 -W 4 10.10.20.10 > /dev/null 2>&1; then
-        result PASS "Firewall routed attacker -> DMZ successfully"
+    echo "  Firewall Enforcement (kali -> metasploitable2, cross-bridge — must PASS)"
+    if docker exec kali ping -c 1 -W 4 10.10.20.10 > /dev/null 2>&1; then
+        result PASS "Firewall routed kali -> DMZ successfully"
     else
-        result FAIL "Firewall failed to route attacker -> DMZ"
+        result FAIL "Firewall failed to route kali -> DMZ"
     fi
 
-    echo "  Drop Policy (vulnerable-target -> attacker, no reverse route — must FAIL)"
-    if docker exec vulnerable-target ping -c 1 -W 2 10.10.10.10 > /dev/null 2>&1; then
-        result FAIL "Drop policy NOT active — DMZ can initiate connections to attacker"
+    echo "  Drop Policy (metasploitable2 -> kali, no reverse route — must FAIL)"
+    if docker exec metasploitable2 ping -c 1 -W 2 10.10.10.10 > /dev/null 2>&1; then
+        result FAIL "Drop policy NOT active — DMZ can initiate connections to kali"
     else
-        result PASS "Drop policy active — DMZ cannot initiate connections to attacker"
+        result PASS "Drop policy active — DMZ cannot initiate connections to kali"
     fi
 fi
 
 if [ "${ACTIVE_ATOMICRED:-false}" = "true" ] && [ "${ACTIVE_METASPLOITABLE2:-false}" = "true" ]; then
-    echo "  Firewall Enforcement (atomic-red -> vulnerable-target, cross-bridge — must PASS)"
+    echo "  Firewall Enforcement (atomic-red -> metasploitable2, cross-bridge — must PASS)"
     if docker exec atomic-red ping -c 1 -W 4 10.10.20.10 > /dev/null 2>&1; then
         result PASS "Firewall routed atomic-red -> DMZ successfully"
     else
@@ -90,23 +90,23 @@ echo "  Firewall health: $FIREWALL_HEALTH"
 
 if [ "${ACTIVE_WAZUH:-false}" = "true" ]; then
     if [ -z "$WAZUH_ADMIN_PASSWORD" ]; then
-        echo "WARNING: WAZUH_ADMIN_PASSWORD not found in .env; SIEM API check will likely fail."
+        echo "WARNING: WAZUH_ADMIN_PASSWORD not found in .env; Wazuh API check will likely fail."
     fi
-    echo "  Waiting for Wazuh SIEM API (polling every 5s, up to 120s)..."
-    SIEM_READY=false
+    echo "  Waiting for Wazuh API (polling every 5s, up to 120s)..."
+    WAZUH_READY=false
     for attempt in $(seq 1 24); do
         if docker exec wazuh-manager curl -s -k \
             -u "admin:${WAZUH_ADMIN_PASSWORD}" \
             https://127.0.0.1:55000/ > /dev/null 2>&1; then
-            result PASS "SIEM API reachable (attempt ${attempt}/24)"
-            SIEM_READY=true
+            result PASS "Wazuh API reachable (attempt ${attempt}/24)"
+            WAZUH_READY=true
             break
         fi
         echo "    Not ready yet (attempt ${attempt}/24) — retrying in 5s..."
         sleep 5
     done
-    if [ "$SIEM_READY" = "false" ]; then
-        result FAIL "SIEM API did not respond within 120 seconds"
+    if [ "$WAZUH_READY" = "false" ]; then
+        result FAIL "Wazuh API did not respond within 120 seconds"
     fi
 fi
 

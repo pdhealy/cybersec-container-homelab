@@ -1,5 +1,5 @@
 name: "AtomicRed -> Ubuntu -> Wazuh"
-description: "Automated adversary emulation against Ubuntu with Wazuh SIEM"
+description: "Automated adversary emulation against Ubuntu with Wazuh Wazuh"
 profiles:
   - atomicred
   - ubuntu

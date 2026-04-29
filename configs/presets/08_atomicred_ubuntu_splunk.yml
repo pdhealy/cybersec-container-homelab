@@ -1,5 +1,5 @@
 name: "AtomicRed -> Ubuntu -> Splunk"
-description: "Automated adversary emulation against Ubuntu with Splunk SIEM"
+description: "Automated adversary emulation against Ubuntu with Splunk Wazuh"
 profiles:
   - atomicred
   - ubuntu

@@ -134,7 +134,7 @@ services:
   wazuh.manager:
     profiles: ["wazuh"]
     build:
-      context: ./services/siem
+      context: ./services/siem/wazuh
     image: homelab-wazuh:latest
     container_name: wazuh-manager
     networks:
@@ -206,7 +206,7 @@ services:
   splunk:
     profiles: ["splunk"]
     build:
-      context: ./services/splunk
+      context: ./services/siem/splunk
     image: homelab-splunk:latest
     container_name: splunk
     networks:
@@ -223,10 +223,12 @@ services:
       firewall:
         condition: service_healthy
 
-  vulnerable-target:
+  metasploitable2:
     profiles: ["metasploitable2"]
-    image: tleemcjr/metasploitable2@sha256:e559450b37dccc1909eafa2df5b20bb052e1bd801246f4539a3ef183d5f7288a
-    container_name: vulnerable-target
+    build:
+      context: ./services/vulnerable-target/metasploitable2
+    image: homelab-metasploitable2:latest
+    container_name: metasploitable2
     dns:
       - 10.10.30.5
     networks:
@@ -258,7 +260,7 @@ services:
       - /etc/samba
       - /root/.vnc
     volumes:
-      - ./services/vulnerable-target/syslog.conf:/etc/syslog.conf:ro
+      - ./services/vulnerable-target/metasploitable2/syslog.conf:/etc/syslog.conf:ro
     restart: unless-stopped
     depends_on:
       firewall:
@@ -266,9 +268,11 @@ services:
     command: >
       sh -c "route del default || true && route add default gw 10.10.20.254 && /bin/services.sh && tail -f /dev/null"
 
-  ubuntu:
+  ubuntu-target:
     profiles: ["ubuntu"]
-    image: ubuntu:latest
+    build:
+      context: ./services/vulnerable-target/ubuntu-target
+    image: homelab-ubuntu-target:latest
     container_name: ubuntu-target
     networks:
       dmz_net:
@@ -278,12 +282,12 @@ services:
       firewall:
         condition: service_healthy
 
-  attacker-node:
+  kali:
     profiles: ["kali"]
     build:
-      context: ./services/attacker-node
-    image: homelab-attacker:latest
-    container_name: attacker-node
+      context: ./services/attacker-node/kali
+    image: homelab-kali:latest
+    container_name: kali
     networks:
       external_net:
         ipv4_address: 10.10.10.10
@@ -311,7 +315,9 @@ services:
 
   atomic-red:
     profiles: ["atomicred"]
-    image: redcanary/invoke-atomicredteam:latest
+    build:
+      context: ./services/attacker-node/atomic-red
+    image: homelab-atomicred:latest
     container_name: atomic-red
     networks:
       external_net:
