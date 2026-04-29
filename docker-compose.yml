@@ -330,7 +330,9 @@ services:
       sh -c "ip route del default && ip route add default via 10.10.10.254 && tail -f /dev/null"
 
   wiretap:
-    image: nicolaka/netshoot:latest
+    build:
+      context: ./services/wiretap
+    image: homelab-wiretap:latest
     container_name: wiretap
     network_mode: "service:firewall"
     cap_drop:
