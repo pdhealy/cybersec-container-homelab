@@ -20,12 +20,13 @@ def check_preflight():
             with open("configs/.env.example", "r") as f:
                 env_content = f.read()
             
-            # Replace default insecure passwords with securely generated ones
+            # Replace default insecure passwords with securely generated ones.
+            # Keep SPLUNK_PASSWORD stable because Splunk provisioning in this lab
+            # is tightly coupled to the seeded admin credential.
             for key, default in [
                 ("PIHOLE_PASSWORD", "cyberhomelab_pihole_secure"),
                 ("WAZUH_ADMIN_PASSWORD", "cyberhomelab_wazuh_secure"),
                 ("ATTACKER_PASSWORD", "cyberhomelab_attacker_secure"),
-                ("SPLUNK_PASSWORD", "cyberhomelab_splunk_secure"),
             ]:
                 env_content = env_content.replace(f"{key}={default}", f"{key}={secrets.token_urlsafe(16)}")
             
@@ -193,4 +194,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
