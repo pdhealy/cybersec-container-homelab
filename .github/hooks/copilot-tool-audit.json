@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "./log_tool_activity.js",
+        "cwd": ".github/hooks",
+        "timeoutSec": 5
+      }
+    ],
+    "postToolUse": [
+      {
+        "type": "command",
+        "bash": "./log_tool_activity.js",
+        "cwd": ".github/hooks",
+        "timeoutSec": 5
+      }
+    ]
+  }
+}

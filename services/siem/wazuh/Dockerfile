@@ -30,11 +30,11 @@ RUN awk '!done && /<ossec_config>/{print; print "  <remote>\n    <connection>sys
 # child decoder with ONLY <prematch> (no <regex>) does not become the recorded
 # "leaf" decoder, so <decoded_as>fw_homelab_attack</decoded_as> in a rule
 # would never match.  Adding a minimal regex forces Wazuh to record this as
-# the final decoder for any message beginning with FW_FORWARD_ATTACK:.
-RUN sed -i '0,/<decoder name="iptables-1">/{s|<decoder name="iptables-1">|<decoder name="fw_homelab_attack">\n   <parent>kernel</parent>\n   <prematch>^FW_FORWARD_ATTACK: </prematch>\n   <regex offset="after_prematch">^IN=(\\S+)</regex>\n   <order>id</order>\n</decoder>\n\n<decoder name="iptables-1">|}' \
+# the final decoder for any message beginning with FW_FORWARD_ATTACK.
+RUN sed -i '0,/<decoder name="iptables-1">/{s|<decoder name="iptables-1">|<decoder name="fw_homelab_attack">\n   <parent>kernel</parent>\n   <prematch>^FW_FORWARD_ATTACK </prematch>\n   <regex offset="after_prematch">^IN=(\\S+)</regex>\n   <order>id</order>\n</decoder>\n\n<decoder name="iptables-1">|}' \
     /var/ossec/ruleset/decoders/0140-kernel_decoders.xml
 
-RUN printf '<decoder name="custom_fw_attack">\n  <program_name>^kernel$</program_name>\n  <prematch>FW_FORWARD_ATTACK:</prematch>\n</decoder>\n' \
+RUN printf '<decoder name="custom_fw_attack">\n  <program_name>^ulogd$</program_name>\n  <prematch>FW_FORWARD_ATTACK</prematch>\n</decoder>\n' \
     > /var/ossec/data_tmp/permanent/var/ossec/etc/decoders/custom_fw_attack.xml
 # Rule uses <match> rather than <decoded_as> because Wazuh 4.x records child
 # decoders under the parent name ('kernel'), making decoded_as unusable for

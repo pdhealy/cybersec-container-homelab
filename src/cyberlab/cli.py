@@ -42,41 +42,6 @@ def check_preflight():
 
     print("Pre-flight checks passed.")
 
-def apply_docker_user_rules():
-    print("Configuring iptables for cross-bridge routing while maintaining icc=false...")
-
-    rules = [
-        ["-t", "raw", "-I", "PREROUTING", "-s", "10.10.10.0/24", "!", "-d", "10.10.10.0/24", "-j", "ACCEPT"],
-        ["-t", "raw", "-I", "PREROUTING", "-s", "10.10.20.0/24", "!", "-d", "10.10.20.0/24", "-j", "ACCEPT"],
-        ["-t", "raw", "-I", "PREROUTING", "-s", "10.10.30.0/24", "!", "-d", "10.10.30.0/24", "-j", "ACCEPT"],
-        ["-t", "raw", "-I", "PREROUTING", "-d", "10.10.10.254", "-j", "ACCEPT"],
-        ["-t", "raw", "-I", "PREROUTING", "-d", "10.10.20.254", "-j", "ACCEPT"],
-        ["-t", "raw", "-I", "PREROUTING", "-d", "10.10.30.254", "-j", "ACCEPT"],
-        ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.10.0/24", "!", "-d", "10.10.10.0/24", "-j", "ACCEPT"],
-        ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.20.0/24", "!", "-d", "10.10.20.0/24", "-j", "ACCEPT"],
-        ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.30.0/24", "!", "-d", "10.10.30.0/24", "-j", "ACCEPT"],
-        ["-t", "filter", "-I", "DOCKER-USER", "-d", "10.10.10.254", "-j", "ACCEPT"],
-        ["-t", "filter", "-I", "DOCKER-USER", "-d", "10.10.20.254", "-j", "ACCEPT"],
-        ["-t", "filter", "-I", "DOCKER-USER", "-d", "10.10.30.254", "-j", "ACCEPT"],
-        ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.10.254", "-j", "ACCEPT"],
-        ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.20.254", "-j", "ACCEPT"],
-        ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.30.254", "-j", "ACCEPT"],
-        ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.30.5", "-d", "10.10.30.10", "-j", "ACCEPT"],
-        ["-t", "filter", "-I", "DOCKER-USER", "-s", "10.10.30.5", "-d", "10.10.30.15", "-j", "ACCEPT"],
-    ]
-
-    for rule in rules:
-        check_cmd = ["sudo", "iptables", "-C", rule[1]] + rule[2:]
-        if "-t" in rule:
-            check_cmd = ["sudo", "iptables", "-t", rule[1], "-C", rule[3]] + rule[4:]
-        
-        check = subprocess.run(check_cmd, capture_output=True)
-        if check.returncode != 0:
-            subprocess.run(["sudo", "iptables"] + rule, check=True)
-
-    subprocess.run(["sudo", "iptables", "-D", "DOCKER-USER", "-i", "br-+", "-o", "br-+", "-j", "ACCEPT"], capture_output=True)
-    print("DOCKER-USER/raw PREROUTING: Cross-bridge ACCEPT rules applied.")
-
 def get_presets():
     presets = []
     for f in sorted(glob.glob("configs/presets/*.yml")):
@@ -182,7 +147,6 @@ def main():
 
         write_active_lab_env(profiles)
         run_compose("up", profiles)
-        apply_docker_user_rules()
         print("Waiting for containers to initialize (15s)...")
         time.sleep(15)
         print("Running validation script...")
@@ -208,3 +172,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

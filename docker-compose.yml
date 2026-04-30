@@ -3,10 +3,6 @@ networks:
     driver: bridge
     enable_ipv6: false
     driver_opts:
-      # Disable intra-network ICC so containers on the same subnet cannot
-      # communicate directly; all traffic is forced through the firewall container.
-      # Cross-bridge routing still works because the DOCKER-USER iptables chain
-      # is configured by setup_host.sh / cli.py to ACCEPT br-+ to br-+.
       com.docker.network.bridge.enable_icc: "false"
     ipam:
       config:
@@ -41,13 +37,7 @@ services:
         ipv4_address: 10.10.20.254
       internal_net:
         ipv4_address: 10.10.30.254
-    cap_drop:
-      - ALL
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-      - SYSLOG
-      - NET_BIND_SERVICE
+    privileged: true
     security_opt:
       - no-new-privileges:true
     read_only: true
@@ -115,13 +105,14 @@ services:
       - /var/run/lighttpd
       - /run
       - /run/lighttpd
-      - /etc/pihole
-      - /etc/dnsmasq.d
       - /var/spool/cron/crontabs
       - /var/log/lighttpd
       - /var/cache/lighttpd
       - /etc/lighttpd
       - /var/spool/rsyslog
+    volumes:
+      - pihole_etc:/etc/pihole
+      - pihole_dnsmasq:/etc/dnsmasq.d
     restart: unless-stopped
     depends_on:
       firewall:
@@ -129,7 +120,7 @@ services:
     entrypoint:
       - sh
       - -c
-      - "ip route del default && ip route add default via 10.10.30.254 && /usr/sbin/rsyslogd && exec start.sh"
+      - "ip route replace 10.10.10.0/24 via 10.10.30.254 && ip route replace 10.10.20.0/24 via 10.10.30.254 && /usr/sbin/rsyslogd && exec start.sh"
 
   wazuh.manager:
     profiles: ["wazuh"]
@@ -201,7 +192,7 @@ services:
     entrypoint:
       - sh
       - -c
-      - "ip route del default && ip route add default via 10.10.30.254 && exec /init"
+      - "ip route del default 2>/dev/null || true && ip route add default via 10.10.30.254 && exec /init"
 
   splunk:
     profiles: ["splunk"]
@@ -219,9 +210,23 @@ services:
       - SPLUNK_GENERAL_TERMS=--accept-sgt-current-at-splunk-com
       - SPLUNK_PASSWORD=${SPLUNK_PASSWORD}
     restart: unless-stopped
+    user: "0:0"
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - CHOWN
+      - FOWNER
     depends_on:
       firewall:
         condition: service_healthy
+    entrypoint:
+      - sh
+      - -c
+      - "ip route del default 2>/dev/null || true && ip route add default via 10.10.30.254 && exec sudo -E -u ansible /sbin/entrypoint.sh start"
 
   metasploitable2:
     profiles: ["metasploitable2"]
@@ -274,10 +279,13 @@ services:
       context: ./services/vulnerable-target/ubuntu-target
     image: homelab-ubuntu-target:latest
     container_name: ubuntu-target
+    dns:
+      - 10.10.30.5
     networks:
       dmz_net:
         ipv4_address: 10.10.20.15
-    command: tail -f /dev/null
+    command: >
+      sh -c "ip route del default 2>/dev/null || true && ip route add default via 10.10.20.254 && tail -f /dev/null"
     depends_on:
       firewall:
         condition: service_healthy
@@ -311,7 +319,7 @@ services:
     # Start as root to configure the default route, then drop to hacker via gosu.
     # gosu uses exec(3) so the final process has no residual root capabilities.
     command: >
-      sh -c "ip route del default && ip route add default via 10.10.10.254 && exec gosu hacker tail -f /dev/null"
+      sh -c "ip route del default 2>/dev/null || true && ip route add default via 10.10.10.254 && exec gosu hacker tail -f /dev/null"
 
   atomic-red:
     profiles: ["atomicred"]
@@ -333,7 +341,7 @@ services:
       firewall:
         condition: service_healthy
     command: >
-      sh -c "ip route del default && ip route add default via 10.10.10.254 && tail -f /dev/null"
+      sh -c "ip route del default 2>/dev/null || true && ip route add default via 10.10.10.254 && tail -f /dev/null"
 
   wiretap:
     build:
@@ -357,3 +365,5 @@ services:
 
 volumes:
   wazuh_data:
+  pihole_etc:
+  pihole_dnsmasq:
