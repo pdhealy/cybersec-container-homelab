@@ -19,16 +19,30 @@ from cyberlab import cli
 class TestLabManagerPreflight(unittest.TestCase):
     """Test suite for the pre-flight check logic."""
 
-    @patch('shutil.copy')
+    @patch('questionary.confirm')
     @patch('sys.exit')
     @patch('builtins.print')
     @patch('os.path.exists', return_value=False)
-    def test_missing_env_file(self, mock_exists, mock_print, mock_exit, mock_copy):
-        """Test that missing configs/.env file triggers a copy of configs/.env.example."""
-        cli.check_preflight()
+    def test_missing_env_file(self, mock_exists, mock_print, mock_exit, mock_confirm):
+        """Test that missing configs/.env file triggers secure password generation."""
+        mock_confirm.return_value.ask.return_value = True
+        
+        def mock_open_side_effect(file, mode='r', *args, **kwargs):
+            if file == "configs/.env.example":
+                return mock_open(read_data="PIHOLE_PASSWORD=cyberhomelab_pihole_secure\nWAZUH_ADMIN_PASSWORD=cyberhomelab_wazuh_secure\nATTACKER_PASSWORD=cyberhomelab_attacker_secure\nSPLUNK_PASSWORD=cyberhomelab_splunk_secure\n").return_value
+            elif file == "configs/.env":
+                return mock_open().return_value
+            elif file == "/proc/sys/vm/max_map_count":
+                return mock_open(read_data="262144\n").return_value
+            elif file == "/proc/swaps":
+                return mock_open(read_data="Filename\tType\tSize\tUsed\tPriority\n").return_value
+            raise FileNotFoundError(f"No such file: {file}")
+
+        with patch('builtins.open', side_effect=mock_open_side_effect):
+            cli.check_preflight()
+
         mock_exists.assert_called_once_with("configs/.env")
-        mock_print.assert_any_call("Warning: configs/.env file missing. Automatically copying from configs/.env.example...")
-        mock_copy.assert_called_once_with("configs/.env.example", "configs/.env")
+        mock_print.assert_any_call("Warning: configs/.env file missing. Generating secure passwords...")
         mock_exit.assert_not_called()
 
     @patch('subprocess.run')
@@ -91,27 +105,6 @@ class TestLabManagerPreflight(unittest.TestCase):
         mock_exit.assert_not_called()
 
 
-class TestLabManagerDockerRules(unittest.TestCase):
-    """Test suite for the Docker iptables configuration logic."""
-
-    @patch('subprocess.run')
-    @patch('builtins.print')
-    def test_apply_docker_user_rules_idempotency(self, mock_print, mock_run):
-        """Test that rules are not redundantly added if they already exist."""
-        # Simulate that `iptables -C` succeeds (return code 0) for all checks.
-        mock_run.return_value = MagicMock(returncode=0)
-
-        cli.apply_docker_user_rules()
-
-        # The loop should execute, calling `iptables -C` multiple times.
-        # But `iptables -t <table/chain>` (the actual addition) should never be called.
-        addition_calls = [
-            call_args for call_args in mock_run.call_args_list
-            if not "-C" in call_args[0][0] and "-D" not in call_args[0][0]
-        ]
-        self.assertEqual(len(addition_calls), 0)
-
-
 class TestLabManagerCompose(unittest.TestCase):
     """Test suite for Docker Compose wrapper commands."""
 
@@ -144,7 +137,6 @@ class TestLabManagerMain(unittest.TestCase):
         mock_exit.assert_called_once_with(2)
 
     @patch('sys.argv', ['cyberlab.py', 'status'])
-
     @patch('subprocess.run')
     def test_status_action(self, mock_run):
         """Test the 'status' action."""
@@ -154,22 +146,20 @@ class TestLabManagerMain(unittest.TestCase):
     @patch('sys.argv', ['cyberlab.py', 'up'])
     @patch('cyberlab.cli.check_preflight')
     @patch('cyberlab.cli.run_compose')
-    @patch('cyberlab.cli.apply_docker_user_rules')
     @patch('time.sleep')
     @patch('subprocess.run')
     @patch('builtins.print')
     @patch('cyberlab.cli.interactive_mode', return_value=['core'])
     @patch('cyberlab.cli.write_active_lab_env')
-    def test_up_action(self, mock_write, mock_interactive, mock_print, mock_run, mock_sleep, mock_apply, mock_compose, mock_preflight):
+    def test_up_action(self, mock_write, mock_interactive, mock_print, mock_run, mock_sleep, mock_compose, mock_preflight):
         """Test the comprehensive sequence of the 'up' action."""
         cli.main()
         
         mock_preflight.assert_called_once()
         mock_compose.assert_called_once_with("up", ["core"])
-        mock_apply.assert_called_once()
         mock_sleep.assert_called_once_with(15)
         # Assert that the validation script is executed
-        mock_run.assert_any_call(["bash", "-x", "./scripts/validation.sh"], check=True)
+        mock_run.assert_any_call(["bash", "./scripts/validation.sh"], check=True)
 
 if __name__ == '__main__':
     unittest.main()

@@ -14,9 +14,30 @@ def check_preflight():
     print("Running pre-flight checks...")
 
     if not os.path.exists("configs/.env"):
-        print("Warning: configs/.env file missing. Automatically copying from configs/.env.example...")
+        print("Warning: configs/.env file missing. Generating secure passwords...")
+        import secrets
         try:
-            shutil.copy("configs/.env.example", "configs/.env")
+            with open("configs/.env.example", "r") as f:
+                env_content = f.read()
+            
+            # Replace default insecure passwords with securely generated ones
+            for key, default in [
+                ("PIHOLE_PASSWORD", "cyberhomelab_pihole_secure"),
+                ("WAZUH_ADMIN_PASSWORD", "cyberhomelab_wazuh_secure"),
+                ("ATTACKER_PASSWORD", "cyberhomelab_attacker_secure"),
+                ("SPLUNK_PASSWORD", "cyberhomelab_splunk_secure"),
+            ]:
+                env_content = env_content.replace(f"{key}={default}", f"{key}={secrets.token_urlsafe(16)}")
+            
+            with open("configs/.env", "w") as f:
+                f.write(env_content)
+            print("Generated configs/.env with random secure passwords.")
+            
+            # Force user confirmation
+            confirm = questionary.confirm("Do you want to continue with these auto-generated passwords?").ask()
+            if not confirm:
+                print("Exiting. Please edit configs/.env and re-run.")
+                sys.exit(0)
         except FileNotFoundError:
             print("Error: configs/.env.example not found. Cannot create configs/.env.")
             sys.exit(1)
@@ -150,9 +171,9 @@ def main():
         print("Waiting for containers to initialize (15s)...")
         time.sleep(15)
         print("Running validation script...")
-        subprocess.run(["bash", "-x", "./scripts/validation.sh"], check=True)
+        subprocess.run(["bash", "./scripts/validation.sh"], check=True)
         print("Running attack logging integration test...")
-        subprocess.run(["bash", "-x", "./tests/integration/test_attack_logging.sh"], check=True)
+        subprocess.run(["bash", "./tests/integration/test_attack_logging.sh"], check=True)
     elif action == "down":
         run_compose("down")
         if os.path.exists("configs/.active_lab.env"):

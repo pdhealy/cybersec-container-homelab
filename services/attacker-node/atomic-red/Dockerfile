@@ -1,1 +1,1 @@
-FROM redcanary/invoke-atomicredteam:latest
+FROM redcanary/invoke-atomicredteam@sha256:524afb175d241e503a20edebdb0e56fc9d851b19ce1e979f58763558ab675a6d

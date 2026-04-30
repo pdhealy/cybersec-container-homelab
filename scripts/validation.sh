@@ -111,13 +111,15 @@ if [ "${ACTIVE_WAZUH:-false}" = "true" ]; then
 fi
 
 if [ "${ACTIVE_SPLUNK:-false}" = "true" ]; then
-    echo "  Waiting for Splunk to finish provisioning (polling for UDP 1514, up to 600s)..."
+    echo "  Waiting for Splunk to finish provisioning (polling up to 600s)..."
     SPLUNK_READY=false
     for attempt in $(seq 1 120); do
         if docker exec splunk grep "05EA" /proc/net/udp > /dev/null 2>&1; then
-            result PASS "Splunk is ready and listening on UDP 1514 (attempt ${attempt}/120)"
-            SPLUNK_READY=true
-            break
+            if ! docker exec splunk ps aux | grep -v grep | grep -q "ansible-playbook"; then
+                result PASS "Splunk is ready and listening on UDP 1514 (attempt ${attempt}/120)"
+                SPLUNK_READY=true
+                break
+            fi
         fi
         echo "    Splunk provisioning... (attempt ${attempt}/120) — retrying in 5s..."
         sleep 5
