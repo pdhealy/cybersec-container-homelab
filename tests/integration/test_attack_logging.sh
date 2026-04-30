@@ -176,10 +176,10 @@ if [ "${ACTIVE_WAZUH:-false}" = "true" ]; then
     fi
 fi
 if [ "${ACTIVE_SPLUNK:-false}" = "true" ]; then
-    if check_splunk_log "\"${TEST_DOMAIN}\""; then
+    if check_splunk_log "host=\"pihole.cybersec-container-homelab_internal_net\" \"${TEST_DOMAIN}\""; then
         echo "  [PASS] Splunk: Pi-hole logged the DNS query for ${TEST_DOMAIN}."
     else
-        echo "  [FAIL] Splunk: Pi-hole DNS logs not found for ${TEST_DOMAIN}."
+        echo "  [FAIL] Splunk: Pi-hole DNS logs from host pihole.cybersec-container-homelab_internal_net not found for ${TEST_DOMAIN}."
         ALL_PASSED=false
     fi
 fi
