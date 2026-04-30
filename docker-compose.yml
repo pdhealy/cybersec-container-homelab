@@ -37,7 +37,11 @@ services:
         ipv4_address: 10.10.20.254
       internal_net:
         ipv4_address: 10.10.30.254
-    privileged: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
     security_opt:
       - no-new-privileges:true
     read_only: true
@@ -53,7 +57,7 @@ services:
     user: "0:0"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "iptables -L"]
+      test: ["CMD-SHELL", "pgrep rsyslogd > /dev/null && pgrep ulogd > /dev/null && logger -t healthcheck 'healthcheck ping'"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -70,7 +74,7 @@ services:
       internal_net:
         ipv4_address: 10.10.30.5
     ports:
-      - "8080:80"
+      - "127.0.0.1:8080:80"
     environment:
       - FTLCONF_webserver_api_password=${PIHOLE_PASSWORD}
       - DNSMASQ_USER=root
@@ -132,7 +136,7 @@ services:
       internal_net:
         ipv4_address: 10.10.30.10
     ports:
-      - "55000:55000"
+      - "127.0.0.1:55000:55000"
     environment:
       - WAZUH_ADMIN_PASSWORD=${WAZUH_ADMIN_PASSWORD}
       - S6_READ_ONLY_ROOT=1
@@ -204,7 +208,7 @@ services:
       internal_net:
         ipv4_address: 10.10.30.15
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       - SPLUNK_START_ARGS=--accept-license
       - SPLUNK_GENERAL_TERMS=--accept-sgt-current-at-splunk-com
