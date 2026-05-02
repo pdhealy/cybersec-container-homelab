@@ -25,16 +25,13 @@ function readStdin() {
 }
 
 function parseToolArgs(rawToolArgs) {
-  const raw =
-    rawToolArgs === null || rawToolArgs === undefined ? "{}" : rawToolArgs;
-  if (typeof raw !== "string") {
-    return { _rawToolArgs: raw };
-  }
+  if (rawToolArgs == null) return {};
+  if (typeof rawToolArgs === "object") return rawToolArgs;
 
   try {
-    return JSON.parse(raw);
+    return JSON.parse(rawToolArgs);
   } catch {
-    return { _rawToolArgs: raw };
+    return { _rawToolArgs: rawToolArgs };
   }
 }
 
@@ -174,11 +171,19 @@ function writeBashCommandMd(parsedInput, hookEvent, toolArgs) {
   if (parsedInput.toolName !== "bash") return;
 
   const outputFile = path.join(LOG_ROOT, `${hookEvent}.md`);
-  const timestamp = parsedInput.timestamp != null ? String(parsedInput.timestamp) : new Date().toISOString();
+  let timestampIso = new Date().toISOString();
+  if (parsedInput.timestamp != null) {
+    const tsNum = Number(parsedInput.timestamp);
+    if (!isNaN(tsNum)) {
+      timestampIso = new Date(tsNum).toISOString();
+    } else {
+      timestampIso = String(parsedInput.timestamp);
+    }
+  }
 
   const block = hookEvent === "preToolUse"
-    ? buildPreToolUseBlock(timestamp, toolArgs)
-    : buildPostToolUseBlock(timestamp, toolArgs, parsedInput.toolResult);
+    ? buildPreToolUseBlock(timestampIso, toolArgs)
+    : buildPostToolUseBlock(timestampIso, toolArgs, parsedInput.toolResult);
 
   try {
     fs.mkdirSync(LOG_ROOT, { recursive: true });
