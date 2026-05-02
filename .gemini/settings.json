@@ -34,7 +34,7 @@
           {
             "name": "logger",
             "type": "command",
-            "command": ".gemini/hooks/log_activity.sh",
+            "command": ".gemini/hooks/log_activity.js",
             "enabled": true
           }
         ]
@@ -47,7 +47,7 @@
           {
             "name": "logger",
             "type": "command",
-            "command": ".gemini/hooks/log_activity.sh",
+            "command": ".gemini/hooks/log_activity.js",
             "enabled": true
           }
         ]

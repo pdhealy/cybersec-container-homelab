@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y \
     ulogd2 \
     rsyslog \
     iproute2 \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # The Debian package for ulogd2 might create a 'ulog' user. 

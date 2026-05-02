@@ -6,8 +6,6 @@ const path = require("path");
 
 const LOG_ROOT = path.resolve(__dirname, "..", "logs");
 
-const MAX_OUTPUT_LINES = 30;
-
 function emitEmptyObject() {
   process.stdout.write("{}\n");
 }
@@ -96,98 +94,6 @@ function parseInputPayload(inputData) {
   }
 }
 
-// --- Bash command markdown helpers ---
-
-function formatTimestamp(iso) {
-  if (!iso) return "";
-  return iso
-    .replace("T", " ")
-    .replace(/\.\d+Z$/, " UTC")
-    .replace(/Z$/, " UTC")
-    .replace(/\+0000$/, " UTC");
-}
-
-function truncateOutput(text) {
-  const lines = text.split("\n");
-  if (lines.length <= MAX_OUTPUT_LINES) return { text, truncated: false };
-  const kept = MAX_OUTPUT_LINES - 1;
-  return {
-    text: lines.slice(0, kept).join("\n"),
-    truncated: true,
-    omitted: lines.length - kept,
-  };
-}
-
-function buildPreToolUseBlock(timestamp, toolArgs) {
-  const command = typeof toolArgs.command === "string" ? toolArgs.command : "(no command)";
-  const description = typeof toolArgs.description === "string" && toolArgs.description.trim()
-    ? toolArgs.description.trim()
-    : null;
-
-  const meta = timestamp ? `> \`${formatTimestamp(timestamp)}\`` : "";
-  const descLine = description ? `- ${description}` : `- *(no description)*`;
-
-  const parts = [];
-  if (meta) parts.push(meta, "");
-  parts.push(descLine, "", "```bash", command, "```");
-
-  return parts.join("\n");
-}
-
-function buildPostToolUseBlock(timestamp, toolArgs, toolResult) {
-  const command = typeof toolArgs.command === "string" ? toolArgs.command : "(no command)";
-  const description = typeof toolArgs.description === "string" && toolArgs.description.trim()
-    ? toolArgs.description.trim()
-    : null;
-
-  const rawOutput = typeof toolResult?.textResultForLlm === "string"
-    ? toolResult.textResultForLlm
-    : "";
-
-  const meta = timestamp ? `> \`${formatTimestamp(timestamp)}\`` : "";
-  const descLine = description ? `- ${description}` : `- *(no description)*`;
-
-  const outputTrimmed = rawOutput.trim();
-  const { text: outputText, truncated, omitted } = truncateOutput(
-    outputTrimmed.length > 0 ? outputTrimmed : "Output: (empty)"
-  );
-  const truncationNotice = truncated ? `\n\n... *(${omitted} lines omitted)*` : "";
-
-  const parts = [];
-  if (meta) parts.push(meta, "");
-  parts.push(
-    descLine,
-    "",
-    "```bash",
-    command,
-    "```",
-    "",
-    "```plaintext",
-    outputText + truncationNotice,
-    "```"
-  );
-
-  return parts.join("\n");
-}
-
-function writeBashCommandMd(parsedInput, hookEvent, toolArgs) {
-  if (parsedInput.toolName !== "bash") return;
-
-  const outputFile = path.join(LOG_ROOT, `${hookEvent}.md`);
-  const timestamp = parsedInput.timestamp != null ? String(parsedInput.timestamp) : new Date().toISOString();
-
-  const block = hookEvent === "preToolUse"
-    ? buildPreToolUseBlock(timestamp, toolArgs)
-    : buildPostToolUseBlock(timestamp, toolArgs, parsedInput.toolResult);
-
-  try {
-    fs.mkdirSync(LOG_ROOT, { recursive: true });
-    fs.appendFileSync(outputFile, block + "\n\n---\n\n", "utf8");
-  } catch (e) {
-    process.stderr.write("Failed to write markdown log: " + e.message + "\n");
-  }
-}
-
 function getNested(obj, pathParts) {
   let current = obj;
   for (let i = 0; i < pathParts.length; i += 1) {
@@ -246,7 +152,6 @@ async function main() {
   });
 
   writeLogEntry(logEntry);
-  writeBashCommandMd(parsedInput, hookEvent, toolArgs);
   emitEmptyObject();
 }
 
